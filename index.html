@@ -167,13 +167,13 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; }
 /* ── GRID (SPREADSHEET) VIEW ─────────────────────────────────── */
 .grid-view-hint { font-size: 0.78rem; color: var(--accent); margin-bottom: 10px; background: var(--accent-light); border: 1px solid #dbeafe; border-radius: 8px; padding: 8px 12px; }
 .grid-table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 10px; max-height: 520px; }
-.grid-table { border-collapse: collapse; table-layout: auto; }
-.grid-table th { background: var(--bg); font-size: 0.72rem; font-weight: 600; text-align: center; padding: 8px 10px; border-bottom: 2px solid var(--border); border-right: 1px solid var(--border); position: sticky; top: 0; z-index: 3; min-width: 92px; white-space: nowrap; }
+.grid-table { border-collapse: collapse; table-layout: fixed; }
+.grid-table th { background: var(--bg); font-size: 0.72rem; font-weight: 600; text-align: center; padding: 8px 6px; border-bottom: 2px solid var(--border); border-right: 1px solid var(--border); position: sticky; top: 0; z-index: 3; width: 96px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .grid-table th:first-child, .grid-table td:first-child { position: sticky; left: 0; z-index: 4; }
 .grid-table th:first-child { z-index: 5; }
-.grid-table td { padding: 6px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); vertical-align: top; min-width: 92px; }
+.grid-table td { padding: 5px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); vertical-align: top; width: 96px; overflow: hidden; }
 .grid-table tr:hover td { background: var(--bg); }
-.grid-bunker-cell { font-weight: 600; font-size: 0.82rem; white-space: nowrap; background: var(--surface); border-right: 1px solid var(--border) !important; width: 100px !important; text-align: left !important; padding-left: 12px !important; }
+.grid-bunker-cell { font-weight: 600; font-size: 0.82rem; white-space: nowrap; background: var(--surface); border-right: 1px solid var(--border) !important; width: 108px !important; text-align: left !important; padding-left: 12px !important; overflow: hidden; text-overflow: ellipsis; }
 .grid-table tr:hover .grid-bunker-cell { background: var(--bg); }
 th.grid-bunker-cell { z-index: 5; }
 .grid-date-col { line-height: 1.3; }
@@ -189,10 +189,10 @@ th.grid-bunker-cell { z-index: 5; }
 .grid-cell-booked { border: 2px solid var(--green) !important; background: var(--green-light); }
 .grid-cell-free { border: 2px solid var(--red) !important; background: var(--red-light); }
 .grid-cell-empty { min-height: 18px; }
-.grid-booking-row { font-size: 0.7rem; padding: 4px 6px; margin-bottom: 4px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; white-space: nowrap; display: flex; flex-direction: column; gap: 1px; }
+.grid-booking-row { font-size: 0.7rem; padding: 4px 6px; margin-bottom: 4px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; white-space: nowrap; overflow: hidden; display: flex; flex-direction: column; gap: 1px; }
 .grid-booking-row:last-child { margin-bottom: 0; }
-.grid-booking-time { font-weight: 700; color: var(--text); font-size: 0.7rem; white-space: nowrap; }
-.grid-booking-name { color: var(--muted); font-size: 0.68rem; white-space: nowrap; }
+.grid-booking-time { font-weight: 700; color: var(--text); font-size: 0.7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grid-booking-name { color: var(--muted); font-size: 0.68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .calendar-card.cal-fullscreen .grid-table-wrap { max-height: 78vh; }
 @media (max-width: 700px) {
   .cal-day { min-height: 60px; font-size: 0.7rem; }
@@ -212,6 +212,7 @@ th.grid-bunker-cell { z-index: 5; }
 .bunker-dot { width: 10px; height: 10px; border-radius: 50%; }
 .r1 .bunker-dot { background: #2563eb; } .r2 .bunker-dot { background: #7c3aed; }
 .r3 .bunker-dot { background: #0891b2; } .r4 .bunker-dot { background: #059669; }
+.r5 .bunker-dot { background: #db2777; }
 .bunker-name strong { font-size: 0.95rem; font-weight: 600; }
 .status-badge { font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
 .status-running { background: var(--green-light); color: var(--green); }
@@ -559,12 +560,13 @@ tr:hover td { background: var(--bg); }
       <div class="form-field">
         <label>Select Bunker *</label>
         <select id="book-bunker">
-          <option value="H1">H1</option><option value="H2">H2</option>
-          <option value="H3">H3</option><option value="H4">H4</option>
+          <option value="H4">H4</option><option value="H5">H5</option>
+          <option value="SKY-1">SKY-1</option><option value="SKY-2">SKY-2</option>
+          <option value="B1">B1</option>
         </select>
       </div>
       <div class="form-field">
-        <label>Date * (today or future only)</label>
+        <label>Date *</label>
         <input type="date" id="book-date">
       </div>
       <div class="form-field">
@@ -621,21 +623,21 @@ tr:hover td { background: var(--bg); }
 
   <div class="bunker-tabs" id="booking-bunker-tabs">
     <button class="rtab active" onclick="selectBookingBunker('ALL',this)">All Bunkers</button>
-    <button class="rtab" onclick="selectBookingBunker('H1',this)">H1</button>
-    <button class="rtab" onclick="selectBookingBunker('H2',this)">H2</button>
-    <button class="rtab" onclick="selectBookingBunker('H3',this)">H3</button>
     <button class="rtab" onclick="selectBookingBunker('H4',this)">H4</button>
+    <button class="rtab" onclick="selectBookingBunker('H5',this)">H5</button>
+    <button class="rtab" onclick="selectBookingBunker('SKY-1',this)">SKY-1</button>
+    <button class="rtab" onclick="selectBookingBunker('SKY-2',this)">SKY-2</button>
+    <button class="rtab" onclick="selectBookingBunker('B1',this)">B1</button>
   </div>
 
   <div class="booking-date-row">
     <label>Select date to view:</label>
-    <input type="date" id="booking-view-date">
-    <button class="btn" onclick="refreshBookingView()">View</button>
+    <input type="date" id="booking-view-date" onchange="refreshBookingView()">
     <button class="btn btn-primary" onclick="setBookingToday()">Today</button>
   </div>
 
   <div class="slots-card">
-    <h4>🟢 Available Slots — <span id="slots-bunker-label">H1</span> on <span id="slots-date-label">—</span></h4>
+    <h4>🟢 Available Slots — <span id="slots-bunker-label">All Bunkers</span> on <span id="slots-date-label">—</span></h4>
     <div class="slots-grid" id="slots-grid"><span class="slot-empty">Select a date to see available slots</span></div>
   </div>
 
@@ -662,8 +664,9 @@ tr:hover td { background: var(--bg); }
       <div class="cal-controls">
         <select id="cal-bunker-filter" onchange="setCalBunkerFilter(this.value)">
           <option value="ALL">All Bunkers</option>
-          <option value="H1">H1</option><option value="H2">H2</option>
-          <option value="H3">H3</option><option value="H4">H4</option>
+          <option value="H4">H4</option><option value="H5">H5</option>
+          <option value="SKY-1">SKY-1</option><option value="SKY-2">SKY-2</option>
+          <option value="B1">B1</option>
         </select>
         <button class="btn btn-sm" onclick="calPrevMonth()">‹</button>
         <span id="cal-month-label" style="font-weight:600;min-width:130px;text-align:center;display:inline-block"></span>
@@ -721,8 +724,9 @@ tr:hover td { background: var(--bg); }
       <label style="font-size:0.82rem;font-weight:500;color:var(--muted)">Bunker:</label>
       <select id="bdl-bunker">
         <option value="ALL">All Bunkers</option>
-        <option value="H1">H1</option><option value="H2">H2</option>
-        <option value="H3">H3</option><option value="H4">H4</option>
+        <option value="H4">H4</option><option value="H5">H5</option>
+        <option value="SKY-1">SKY-1</option><option value="SKY-2">SKY-2</option>
+        <option value="B1">B1</option>
       </select>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -744,10 +748,11 @@ tr:hover td { background: var(--bg); }
   </div>
   <div class="bunker-tabs" id="dashboard-bunker-tabs">
     <button class="rtab active" onclick="selectDashboardBunker('ALL',this)">All Bunkers</button>
-    <button class="rtab" onclick="selectDashboardBunker('H1',this)">H1</button>
-    <button class="rtab" onclick="selectDashboardBunker('H2',this)">H2</button>
-    <button class="rtab" onclick="selectDashboardBunker('H3',this)">H3</button>
     <button class="rtab" onclick="selectDashboardBunker('H4',this)">H4</button>
+    <button class="rtab" onclick="selectDashboardBunker('H5',this)">H5</button>
+    <button class="rtab" onclick="selectDashboardBunker('SKY-1',this)">SKY-1</button>
+    <button class="rtab" onclick="selectDashboardBunker('SKY-2',this)">SKY-2</button>
+    <button class="rtab" onclick="selectDashboardBunker('B1',this)">B1</button>
   </div>
   <div class="bunker-grid" id="bunker-grid"></div>
   <div class="daily-notes-card">
@@ -767,7 +772,7 @@ tr:hover td { background: var(--bg); }
     </div>
     <div class="mtbl-outer" id="mtbl-outer">
       <div class="mtbl-scroll-hint" id="mtbl-scroll-hint">
-        <span>⇄</span> Scroll to see H2 · H3 · H4 &amp; Notes
+        <span>⇄</span> Scroll to see H5 · SKY-1 · SKY-2 · B1 &amp; Notes
       </div>
       <div id="monthly-table-wrap" class="mtbl-wrap"></div>
       <div class="mtbl-fade-right" id="mtbl-fade-right"></div>
@@ -889,8 +894,8 @@ try {
   console.warn('Firebase SDK failed to load (network/CDN blocked). App will run in offline/local mode.', e);
 }
 
-const BUNKERS = ['H1','H2','H3','H4'];
-const BUNKER_COLORS = ['r1','r2','r3','r4'];
+const BUNKERS = ['H4','H5','SKY-1','SKY-2','B1'];
+const BUNKER_COLORS = ['r1','r2','r3','r4','r5'];
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -1190,6 +1195,11 @@ window.calToday = function() { const t = new Date(); calMonth = t.getMonth(); ca
 
 function selectCalDate(dateStr) {
   calSelectedDate = dateStr;
+  // Keep the top "Available Slots" / "Bookings — All Bunkers" section in sync
+  // with whatever date is clicked on the calendar, so there's one consistent
+  // place showing that day's bookings instead of two separate views.
+  document.getElementById('booking-view-date').value = dateStr;
+  refreshBookingView();
   renderBookingCalendar();
   renderCalDayDetails(dateStr);
 }
@@ -1765,13 +1775,11 @@ window.refreshBookingView = function() {
 // ── BOOKING FORM ──────────────────────────────────────────────
 window.openBookingForm = function() {
   document.getElementById('booking-form-modal').classList.add('open');
-  // Set min date to today to prevent past booking
+  // Past dates are allowed (for recording historical bookings), so no min-date restriction.
   const bookDateInput = document.getElementById('book-date');
-  bookDateInput.min = todayStr();
   const viewDate = document.getElementById('booking-view-date').value;
-  // Only prefill if view date is today or future
-  bookDateInput.value = (viewDate && viewDate >= todayStr()) ? viewDate : todayStr();
-  document.getElementById('book-bunker').value = activeBookingBunker === 'ALL' ? 'H1' : activeBookingBunker;
+  bookDateInput.value = viewDate || todayStr();
+  document.getElementById('book-bunker').value = activeBookingBunker === 'ALL' ? BUNKERS[0] : activeBookingBunker;
   document.getElementById('conflict-alert').classList.remove('show');
   document.getElementById('success-alert').classList.remove('show');
 }
@@ -1796,8 +1804,7 @@ window.openEditBookingForm = function(id) {
   editBookingId = id;
   document.getElementById('booking-form-modal').classList.add('open');
   const bookDateInput = document.getElementById('book-date');
-  bookDateInput.min = todayStr();
-  document.getElementById('book-bunker').value = b.bunker || 'H1';
+  document.getElementById('book-bunker').value = b.bunker || BUNKERS[0];
   bookDateInput.value = b.date || todayStr();
   document.getElementById('book-start').value = b.start || '';
   document.getElementById('book-end').value = b.end || '';
@@ -1825,9 +1832,8 @@ window.checkAndBook = async function() {
   const successEl = document.getElementById('success-alert');
   conflictEl.classList.remove('show'); successEl.classList.remove('show');
 
-  // ── PAST DATE BLOCK ──────────────────────────────────────────
-  if (!date || date < todayStr()) {
-    conflictEl.textContent = '🚫 Bookings can only be made for today or future dates. Past dates are not allowed.';
+  if (!date) {
+    conflictEl.textContent = '⚠️ Please select a date.';
     conflictEl.classList.add('show'); return;
   }
 
@@ -2104,7 +2110,7 @@ let analysisRange = 'today';
 let downtimeBunkerFilter = 'ALL';
 let notRunningBunkerFilter = 'ALL';
 const chartInstances = {};
-const BUNKER_CHART_COLORS = { H1:'#2563eb', H2:'#7c3aed', H3:'#0891b2', H4:'#059669' };
+const BUNKER_CHART_COLORS = { H4:'#2563eb', H5:'#7c3aed', 'SKY-1':'#0891b2', 'SKY-2':'#059669', B1:'#db2777' };
 
 window.setAnalysisRange = function(range, btn) {
   analysisRange = range;
@@ -2465,8 +2471,6 @@ function init() {
   const today = todayStr();
   document.getElementById('selected-date').value = today;
   document.getElementById('booking-view-date').value = today;
-  // Set min date on booking date input
-  document.getElementById('book-date').min = today;
   document.getElementById('today-label').textContent = new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   currentDate = today;
   populateMonthSelects();
