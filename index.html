@@ -4,6 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Astral Dashboard</title>
+<script>
+// Runs before any CSS is applied, so the saved (or system-preferred) theme
+// is set on <html> before first paint — avoids a flash of the wrong theme.
+(function () {
+  try {
+    var saved = localStorage.getItem('astral_theme');
+    var theme = (saved === 'light' || saved === 'dark')
+      ? saved
+      : ((window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark');
+    document.documentElement.setAttribute('data-theme', theme);
+  } catch (e) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  }
+})();
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -22,10 +37,11 @@
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
+  color-scheme: dark;
   --bg: #0a0e18; --surface: #121828; --border: #26304a; --text: #e8ecf6;
-  --muted: #8a93ad; --accent: #3b82f6; --accent-light: rgba(59,130,246,0.15);
-  --green: #34d399; --green-light: rgba(52,211,153,0.15); --red: #f87171; --red-light: rgba(248,113,113,0.15);
-  --amber: #fbbf24; --amber-light: rgba(251,191,36,0.15); --radius: 10px; --shadow: 0 6px 20px rgba(0,0,0,0.5);
+  --muted: #8a93ad; --accent: #3b82f6; --accent-light: rgba(59,130,246,0.18);
+  --green: #34d399; --green-light: rgba(52,211,153,0.20); --red: #f87171; --red-light: rgba(248,113,113,0.20);
+  --amber: #fbbf24; --amber-light: rgba(251,191,36,0.18); --radius: 10px; --shadow: 0 6px 20px rgba(0,0,0,0.5);
 }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: radial-gradient(1200px 800px at 15% -10%, rgba(59,130,246,0.10), transparent 60%), var(--bg); color: var(--text); min-height: 100vh; }
 
@@ -34,6 +50,14 @@ header { background: var(--surface); border-bottom: 1px solid var(--border); pad
 .logo { font-size: 1.05rem; font-weight: 600; }
 .logo span { color: var(--accent); }
 .header-right { display: flex; align-items: center; gap: 12px; }
+.theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; transition: background 0.15s, transform 0.15s; flex-shrink: 0; }
+.theme-toggle:hover { background: var(--bg); transform: rotate(-8deg); }
+.theme-toggle svg { width: 17px; height: 17px; }
+.theme-toggle .icon-moon { display: none; }
+:root[data-theme="light"] .theme-toggle .icon-sun { display: none; }
+:root[data-theme="light"] .theme-toggle .icon-moon { display: block; }
+#login-gate .theme-toggle { border-color: var(--login-border); background: rgba(255,255,255,0.04); color: var(--login-navy); }
+#login-gate .theme-toggle:hover { background: rgba(255,255,255,0.08); }
 .date-display { font-size: 0.82rem; color: var(--muted); background: var(--bg); padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); }
 .conn-status { font-size: 0.75rem; display: flex; align-items: center; gap: 5px; }
 .conn-dot { width: 7px; height: 7px; border-radius: 50%; background: #3a4358; }
@@ -85,7 +109,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; }
 .rtab.active { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
 .booking-date-row { display: flex; align-items: center; gap: 10px; margin-bottom: 1.2rem; flex-wrap: wrap; }
 .booking-date-row label { font-size: 0.83rem; font-weight: 500; color: var(--muted); }
-.booking-date-row input[type=date] { padding: 7px 12px; border: 1px solid var(--border); border-radius: 7px; font-size: 0.85rem; background: var(--surface); outline: none; }
+.booking-date-row input[type=date] { padding: 7px 12px; border: 1px solid var(--border); border-radius: 7px; font-size: 0.85rem; background: var(--surface); color: var(--text); color-scheme: dark; outline: none; }
 .slots-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); margin-bottom: 1.2rem; }
 .slots-card h4 { font-size: 0.85rem; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
 .slots-grid { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -138,7 +162,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; }
 .cal-day-today .cal-day-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: white; }
 .cal-day-selected { outline: 3px solid var(--accent); outline-offset: -1px; }
 .cal-day-events { display: flex; flex-direction: column; gap: 3px; overflow: hidden; }
-.cal-event { font-size: 0.68rem; padding: 2px 5px; border-radius: 4px; background: rgba(255,255,255,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid var(--accent); }
+.cal-event { font-size: 0.68rem; padding: 2px 5px; border-radius: 4px; background: var(--surface); color: var(--text); border: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid var(--accent); }
 .cal-event-more { font-size: 0.66rem; color: var(--muted); font-weight: 600; padding-left: 5px; }
 .cal-day-details { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px; }
 .cal-day-details-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
@@ -372,10 +396,30 @@ tr:hover td { background: var(--bg); }
    dashboard, unchanged; #app-shell just stays hidden until then.
 ════════════════════════════════════════════════════════════════ */
 :root {
-  --login-bg: #05070c; --login-diamond: #101a33; --login-diamond-line: #2b4a8f;
+  --login-bg: #05070c;
   --login-accent: #4c8bff; --login-navy: #eef2fc; --login-muted: #8b95b3;
   --login-card: #0d1220; --login-border: #1d2740;
 }
+
+/* ── LIGHT THEME OVERRIDE ─────────────────────────────────────────
+   Toggled via the theme-switch button, which sets data-theme="light"
+   on <html> and remembers the choice in localStorage. Everything else
+   in the stylesheet is already built on these custom properties, so
+   overriding them here is enough to re-skin the whole app. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f5f6fa; --surface: #ffffff; --border: #e2e4ea; --text: #1a1d23;
+  --muted: #6b7280; --accent: #2563eb; --accent-light: rgba(37,99,235,0.10);
+  --green: #16a34a; --green-light: rgba(22,163,74,0.12); --red: #dc2626; --red-light: rgba(220,38,38,0.12);
+  --amber: #d97706; --amber-light: rgba(217,119,6,0.12); --radius: 10px; --shadow: 0 1px 4px rgba(0,0,0,0.07);
+
+  --login-bg: #f6f8fe;
+  --login-accent: #3457e8; --login-navy: #131c33; --login-muted: #6b7690;
+  --login-card: #ffffff; --login-border: #e2e7f5;
+}
+:root[data-theme="light"] #login-gate .aurora { opacity: 0.55; }
+:root[data-theme="light"] body { background: radial-gradient(1200px 800px at 15% -10%, rgba(37,99,235,0.06), transparent 60%), var(--bg); }
+
 #app-shell { display: none; }
 #login-gate {
   position: fixed; inset: 0; z-index: 9999;
@@ -389,10 +433,13 @@ tr:hover td { background: var(--bg); }
   background-image: radial-gradient(circle, rgba(76,139,255,0.12) 1px, transparent 1px);
   background-size: 34px 34px; opacity: 0.7;
 }
-#login-gate .bg-diamond-svg { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 145vmax; height: 145vmax; }
-#login-gate .diamond-fill { fill: var(--login-diamond); opacity: 0.55; }
-#login-gate .diamond-outline { fill: none; stroke: var(--login-diamond-line); stroke-width: 1.4; stroke-dasharray: 14 10; animation: login-dash-flow 22s linear infinite; }
-@keyframes login-dash-flow { to { stroke-dashoffset: -480; } }
+#login-gate .aurora { position: absolute; border-radius: 50%; filter: blur(90px); will-change: transform, opacity; }
+#login-gate .aurora-1 { width: 46vw; height: 46vw; max-width: 620px; max-height: 620px; background: radial-gradient(circle, rgba(76,139,255,0.55), rgba(76,139,255,0) 70%); top: -14vw; left: -10vw; animation: aurora-drift-1 20s ease-in-out infinite; }
+#login-gate .aurora-2 { width: 40vw; height: 40vw; max-width: 540px; max-height: 540px; background: radial-gradient(circle, rgba(139,92,246,0.45), rgba(139,92,246,0) 70%); bottom: -16vw; right: -8vw; animation: aurora-drift-2 24s ease-in-out infinite; }
+#login-gate .aurora-3 { width: 28vw; height: 28vw; max-width: 380px; max-height: 380px; background: radial-gradient(circle, rgba(34,195,214,0.4), rgba(34,195,214,0) 70%); top: 38%; right: 12%; animation: aurora-drift-3 27s ease-in-out infinite; }
+@keyframes aurora-drift-1 { 0%,100% { transform: translate(0,0) scale(1); opacity: 0.8; } 50% { transform: translate(4vw,3vw) scale(1.12); opacity: 1; } }
+@keyframes aurora-drift-2 { 0%,100% { transform: translate(0,0) scale(1); opacity: 0.7; } 50% { transform: translate(-3vw,-4vw) scale(1.08); opacity: 0.95; } }
+@keyframes aurora-drift-3 { 0%,100% { transform: translate(0,0) scale(1); opacity: 0.6; } 50% { transform: translate(-2vw,3vw) scale(1.18); opacity: 0.9; } }
 #login-gate header {
   position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between;
   padding: 26px 44px; height: auto; background: transparent; border: none;
@@ -434,7 +481,7 @@ tr:hover td { background: var(--bg); }
   #login-gate .eyebrow { margin-left: auto; margin-right: auto; }
 }
 @media (prefers-reduced-motion: reduce) {
-  #login-gate .diamond-outline { animation: none; }
+  #login-gate .aurora { animation: none; }
 }
 </style>
 </head>
@@ -448,10 +495,9 @@ tr:hover td { background: var(--bg); }
 <div id="login-gate">
   <div class="bg-layer">
     <div class="bg-dots"></div>
-    <svg class="bg-diamond-svg" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet">
-      <polygon class="diamond-fill" points="500,60 940,500 500,940 60,500" />
-      <polygon class="diamond-outline" points="500,60 940,500 500,940 60,500" />
-    </svg>
+    <div class="aurora aurora-1"></div>
+    <div class="aurora aurora-2"></div>
+    <div class="aurora aurora-3"></div>
   </div>
 
   <header>
@@ -461,6 +507,10 @@ tr:hover td { background: var(--bg); }
       </div>
       <div class="brand-word"><b>ASTRAL</b><span>SYSTEMS</span></div>
     </div>
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle light/dark theme" title="Toggle light/dark theme">
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="currentColor"><path d="M20.742 13.045a8.088 8.088 0 0 1-2.077.273c-4.492 0-8.13-3.639-8.13-8.13 0-.712.093-1.403.267-2.06a.75.75 0 0 0-.96-.899C6.24 3.6 3.75 7.166 3.75 11.25c0 5.108 4.142 9.25 9.25 9.25 4.084 0 7.65-2.49 9.02-6.093a.75.75 0 0 0-.278-.862.744.744 0 0 0-.5-.1z"/></svg>
+    </button>
   </header>
 
   <main>
@@ -513,6 +563,10 @@ tr:hover td { background: var(--bg); }
     <span id="user-email-label" style="font-size:0.78rem;color:var(--muted);"></span>
     <button onclick="handleSignOut()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:0.78rem;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:5px">🚪 Logout</button>
     <div class="date-display" id="today-label"></div>
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle light/dark theme" title="Toggle light/dark theme">
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="currentColor"><path d="M20.742 13.045a8.088 8.088 0 0 1-2.077.273c-4.492 0-8.13-3.639-8.13-8.13 0-.712.093-1.403.267-2.06a.75.75 0 0 0-.96-.899C6.24 3.6 3.75 7.166 3.75 11.25c0 5.108 4.142 9.25 9.25 9.25 4.084 0 7.65-2.49 9.02-6.093a.75.75 0 0 0-.278-.862.744.744 0 0 0-.5-.1z"/></svg>
+    </button>
   </div>
 </header>
 
@@ -894,13 +948,43 @@ try {
   console.warn('Firebase SDK failed to load (network/CDN blocked). App will run in offline/local mode.', e);
 }
 
-// Chart.js text/gridlines default to dark-on-light; set global dark-theme
-// defaults once so every chart (bars, pies, legends, axis ticks) is legible
-// against the new navy/black surfaces without touching each chart's own config.
-if (typeof Chart !== 'undefined') {
-  Chart.defaults.color = '#8a93ad';
-  Chart.defaults.borderColor = '#26304a';
+// ── THEME (light/dark) ──────────────────────────────────────────
+// The <head> already set data-theme on <html> before first paint (see the
+// inline script up top). This section just keeps Chart.js and the toggle
+// button's state in sync whenever the person switches themes.
+const THEME_CHART_COLORS = {
+  dark:  { color: '#8a93ad', border: '#26304a' },
+  light: { color: '#6b7280', border: '#e2e4ea' },
+};
+
+function getCurrentTheme() {
+  return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
 }
+
+function applyChartTheme(theme) {
+  if (typeof Chart === 'undefined') return;
+  const c = THEME_CHART_COLORS[theme];
+  Chart.defaults.color = c.color;
+  Chart.defaults.borderColor = c.border;
+}
+
+window.toggleTheme = function () {
+  const next = getCurrentTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('astral_theme', next); } catch (e) { /* ignore */ }
+  applyChartTheme(next);
+  // Charts already on screen were drawn with the old theme's text/grid
+  // colors baked in — re-render them immediately if the Analysis tab is
+  // the one currently showing, so the switch feels instant everywhere.
+  const analysisTab = document.getElementById('tab-analysis');
+  if (analysisTab && analysisTab.classList.contains('active') && typeof renderAnalysis === 'function') {
+    renderAnalysis();
+  }
+}
+
+// Apply the correct chart theme immediately on load (matches whatever the
+// early <head> script already set on <html>).
+applyChartTheme(getCurrentTheme());
 
 const BUNKERS = ['H4','H5','SKY-1','SKY-2','B1'];
 const BUNKER_COLORS = ['r1','r2','r3','r4','r5'];
