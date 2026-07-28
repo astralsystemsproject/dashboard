@@ -43,6 +43,14 @@
   --green: #34d399; --green-light: rgba(52,211,153,0.20); --red: #f87171; --red-light: rgba(248,113,113,0.20);
   --amber: #fbbf24; --amber-light: rgba(251,191,36,0.18); --radius: 10px; --shadow: 0 6px 20px rgba(0,0,0,0.5);
 }
+/* Native <select> dropdown POPUPS don't reliably inherit the select's own
+   background/text color in most browsers — only color-scheme handles the
+   closed box automatically. Setting colors on <option> directly is the
+   standard fix so the open list is readable in both themes. */
+select option {
+  background: var(--surface);
+  color: var(--text);
+}
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--text); min-height: 100vh; background-color: var(--bg);
@@ -860,6 +868,10 @@ tr:hover td { background: var(--bg); }
         <label>Your Name *</label>
         <input type="text" id="book-name" placeholder="Full name">
       </div>
+      <div class="form-field">
+        <label>Cost Centre</label>
+        <input type="text" id="book-costcentre" placeholder="e.g. CC-1042">
+      </div>
       <div class="form-field full">
         <label>Organization / Department *</label>
         <input type="text" id="book-org">
@@ -926,9 +938,9 @@ tr:hover td { background: var(--bg); }
       <table id="bookings-table">
         <thead><tr>
           <th>Booking ID</th><th>Bunker</th><th>Date</th><th>From</th><th>To</th><th>Duration</th>
-          <th>Name</th><th>Organization</th><th>Reason of Running</th><th>Status</th><th>Action</th>
+          <th>Name</th><th>Cost Centre</th><th>Organization</th><th>Reason of Running</th><th>Status</th><th>Action</th>
         </tr></thead>
-        <tbody id="bookings-tbody"><tr><td colspan="11" style="text-align:center;color:var(--muted);padding:20px">Select a date to view bookings</td></tr></tbody>
+        <tbody id="bookings-tbody"><tr><td colspan="12" style="text-align:center;color:var(--muted);padding:20px">Select a date to view bookings</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -2078,7 +2090,7 @@ window.refreshBookingView = function() {
     <td style="white-space:nowrap">${fmtDate(b.date)}</td>
     <td>${b.start?fmt24(b.start):'—'}</td><td>${b.end?fmt24(b.end):'—'}</td>
     <td>${b.startMins!=null&&b.endMins!=null?fmt(b.endMins-b.startMins):'—'}</td>
-    <td>${b.name||'—'}</td><td>${b.org||'—'}</td>
+    <td>${b.name||'—'}</td><td>${b.costCentre||'—'}</td><td>${b.org||'—'}</td>
     <td style="max-width:140px;font-size:0.78rem">${(b.purpose||'—').slice(0,60)}</td>
     <td>${b.status==='cancelled'?'<span style="color:var(--red);font-size:0.75rem;font-weight:600">Cancelled</span>':'<span class="confirmed-badge">Confirmed</span>'}</td>
     <td style="white-space:nowrap;display:flex;gap:6px">
@@ -2103,7 +2115,7 @@ window.openBookingForm = function() {
 
 window.closeBookingForm = function() {
   document.getElementById('booking-form-modal').classList.remove('open');
-  ['book-name','book-org','book-purpose','book-contact'].forEach(id => document.getElementById(id).value = '');
+  ['book-name','book-org','book-purpose','book-contact','book-costcentre'].forEach(id => document.getElementById(id).value = '');
   editBookingId = null;
   document.getElementById('booking-form-title').textContent = '📝 New Booking Request';
   document.getElementById('booking-form-submit-btn').textContent = 'Check & Confirm Booking';
@@ -2126,6 +2138,7 @@ window.openEditBookingForm = function(id) {
   document.getElementById('book-start').value = b.start || '';
   document.getElementById('book-end').value = b.end || '';
   document.getElementById('book-name').value = b.name || '';
+  document.getElementById('book-costcentre').value = b.costCentre || '';
   document.getElementById('book-org').value = b.org || '';
   document.getElementById('book-purpose').value = b.purpose || '';
   document.getElementById('book-contact').value = b.contact || '';
@@ -2141,6 +2154,7 @@ window.checkAndBook = async function() {
   const start = document.getElementById('book-start').value;
   const end = document.getElementById('book-end').value;
   const name = document.getElementById('book-name').value.trim();
+  const costCentre = document.getElementById('book-costcentre').value.trim();
   const org = document.getElementById('book-org').value.trim();
   const purpose = document.getElementById('book-purpose').value.trim();
   const contact = document.getElementById('book-contact').value.trim();
@@ -2176,7 +2190,7 @@ window.checkAndBook = async function() {
   const id = isEdit ? editBookingId : genId();
   const prior = isEdit ? allBookings[id] : null;
   const booking = {
-    id, bunker, date, start, end, startMins: sm, endMins: em, name, org, purpose, contact,
+    id, bunker, date, start, end, startMins: sm, endMins: em, name, org, costCentre, purpose, contact,
     status: prior ? prior.status : 'confirmed',
     bookedAt: prior ? prior.bookedAt : new Date().toISOString(),
     ...(isEdit ? { editedAt: new Date().toISOString() } : {})
@@ -2259,14 +2273,14 @@ window.downloadBookingsCSV = function() {
   const month = parseInt(document.getElementById('bdl-month').value);
   const year = parseInt(document.getElementById('bdl-year').value);
   const filterBunker = document.getElementById('bdl-bunker').value;
-  let csv = 'Booking ID,Bunker,Date,Start,End,Duration (hrs),Name,Organization,Reason of Running,Contact,Status,Booked At\n';
+  let csv = 'Booking ID,Bunker,Date,Start,End,Duration (hrs),Name,Cost Centre,Organization,Reason of Running,Contact,Status,Booked At\n';
   Object.entries(allBookings).forEach(([id,b]) => {
     if (filterBunker !== 'ALL' && b.bunker !== filterBunker) return;
     if (!b.date) return;
     const [y,m] = b.date.split('-');
     if (parseInt(m) !== month || parseInt(y) !== year) return;
     const dur = (b.startMins!=null&&b.endMins!=null) ? ((b.endMins-b.startMins)/60).toFixed(2) : '';
-    csv += `"${id}","${b.bunker}","${b.date}","${b.start}","${b.end}","${dur}","${b.name}","${b.org}","${(b.purpose||'').replace(/"/g,'""')}","${b.contact||''}","${b.status}","${b.bookedAt||''}"\n`;
+    csv += `"${id}","${b.bunker}","${b.date}","${b.start}","${b.end}","${dur}","${b.name}","${b.costCentre||''}","${b.org}","${(b.purpose||'').replace(/"/g,'""')}","${b.contact||''}","${b.status}","${b.bookedAt||''}"\n`;
   });
   const blob = new Blob([csv],{type:'text/csv'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
@@ -2292,10 +2306,10 @@ window.downloadBookingsPDF = function() {
     const [y,m] = b.date.split('-');
     if (parseInt(m) !== month || parseInt(y) !== year) return;
     const dur = (b.startMins!=null&&b.endMins!=null) ? fmt(b.endMins-b.startMins) : '—';
-    rows.push([id, `${b.bunker}`, fmtDate(b.date), b.start, b.end, dur, b.name, (b.org||'').slice(0,25), (b.purpose||'').slice(0,30), b.status]);
+    rows.push([id, `${b.bunker}`, fmtDate(b.date), b.start, b.end, dur, b.name, (b.costCentre||'').slice(0,20), (b.org||'').slice(0,25), (b.purpose||'').slice(0,30), b.status]);
   });
   rows.sort((a,b) => a[2].localeCompare(b[2]));
-  doc.autoTable({ head:[['ID','Bunker','Date','From','To','Duration','Name','Organization','Reason','Status']], body:rows, startY:30, styles:{fontSize:7,cellPadding:2}, headStyles:{fillColor:[37,99,235],textColor:255,fontStyle:'bold'}, alternateRowStyles:{fillColor:[245,246,250]}, didParseCell:(data)=>{ if(data.section==='body'&&data.column.index===9&&data.cell.raw==='cancelled')data.cell.styles.textColor=[220,38,38]; } });
+  doc.autoTable({ head:[['ID','Bunker','Date','From','To','Duration','Name','Cost Centre','Organization','Reason','Status']], body:rows, startY:30, styles:{fontSize:7,cellPadding:2}, headStyles:{fillColor:[37,99,235],textColor:255,fontStyle:'bold'}, alternateRowStyles:{fillColor:[245,246,250]}, didParseCell:(data)=>{ if(data.section==='body'&&data.column.index===10&&data.cell.raw==='cancelled')data.cell.styles.textColor=[220,38,38]; } });
   doc.addPage();
   doc.setFontSize(13); doc.setFont(undefined,'bold');
   doc.text(`Booking Summary — ${mName} ${year}`, 14, 18);
