@@ -445,6 +445,85 @@ tr:hover td { background: var(--bg); }
     repeating-linear-gradient(90deg, rgba(37,99,235,0.035) 0px, rgba(37,99,235,0.035) 1px, transparent 1px, transparent 42px);
 }
 
+/* ── DASHBOARD STARFIELD (space effect, kept subtle) ───────────────
+   Sits fixed behind the whole app at all times; only actually visible
+   in the gaps around cards/tables since those have solid backgrounds.
+   Deliberately dimmer/sparser than the login page's version — this is
+   a working screen, not a hero page. */
+#dash-stars { position: fixed; inset: -20%; z-index: -1; pointer-events: none; }
+#dash-stars .dash-stars-1 {
+  position: absolute; inset: 0;
+  background-image: radial-gradient(0.89px 0.89px at 97.1px 45.3px, rgba(200,215,255,0.13), transparent),
+    radial-gradient(0.53px 0.53px at 160.8px 109.7px, rgba(200,215,255,0.2), transparent),
+    radial-gradient(0.54px 0.54px at 11.2px 130.1px, rgba(200,215,255,0.13), transparent),
+    radial-gradient(0.57px 0.57px at 127.4px 248.1px, rgba(200,215,255,0.16), transparent),
+    radial-gradient(0.85px 0.85px at 188.2px 284.3px, rgba(200,215,255,0.18), transparent),
+    radial-gradient(1.02px 1.02px at 292.9px 14.0px, rgba(200,215,255,0.17), transparent),
+    radial-gradient(0.69px 0.69px at 43.3px 35.3px, rgba(200,215,255,0.25), transparent),
+    radial-gradient(0.88px 0.88px at 54.2px 174.5px, rgba(200,215,255,0.18), transparent),
+    radial-gradient(0.54px 0.54px at 164.3px 18.8px, rgba(200,215,255,0.15), transparent),
+    radial-gradient(0.69px 0.69px at 204.1px 128.3px, rgba(200,215,255,0.21), transparent),
+    radial-gradient(0.98px 0.98px at 136.0px 89.9px, rgba(200,215,255,0.23), transparent),
+    radial-gradient(0.82px 0.82px at 73.2px 172.3px, rgba(200,215,255,0.26), transparent),
+    radial-gradient(1.09px 1.09px at 218.8px 86.4px, rgba(200,215,255,0.14), transparent),
+    radial-gradient(0.59px 0.59px at 125.4px 227.1px, rgba(200,215,255,0.2), transparent),
+    radial-gradient(0.96px 0.96px at 11.8px 200.5px, rgba(200,215,255,0.21), transparent),
+    radial-gradient(0.92px 0.92px at 262.6px 94.1px, rgba(200,215,255,0.22), transparent),
+    radial-gradient(1.0px 1.0px at 174.0px 136.9px, rgba(200,215,255,0.27), transparent),
+    radial-gradient(0.54px 0.54px at 142.2px 199.2px, rgba(200,215,255,0.23), transparent),
+    radial-gradient(0.99px 0.99px at 194.1px 297.9px, rgba(200,215,255,0.17), transparent),
+    radial-gradient(0.51px 0.51px at 115.7px 200.6px, rgba(200,215,255,0.19), transparent),
+    radial-gradient(0.54px 0.54px at 50.4px 35.1px, rgba(200,215,255,0.24), transparent),
+    radial-gradient(0.73px 0.73px at 38.8px 74.3px, rgba(200,215,255,0.26), transparent),
+    radial-gradient(0.83px 0.83px at 24.2px 134.8px, rgba(200,215,255,0.26), transparent),
+    radial-gradient(0.67px 0.67px at 245.8px 259.2px, rgba(200,215,255,0.19), transparent),
+    radial-gradient(1.07px 1.07px at 107.6px 265.3px, rgba(200,215,255,0.14), transparent),
+    radial-gradient(0.64px 0.64px at 52.9px 69.6px, rgba(200,215,255,0.2), transparent),
+    radial-gradient(0.5px 0.5px at 176.7px 78.8px, rgba(200,215,255,0.19), transparent),
+    radial-gradient(1.07px 1.07px at 110.8px 169.9px, rgba(200,215,255,0.23), transparent),
+    radial-gradient(0.91px 0.91px at 154.6px 185.3px, rgba(200,215,255,0.13), transparent),
+    radial-gradient(1.02px 1.02px at 269.9px 234.0px, rgba(200,215,255,0.25), transparent),
+    radial-gradient(0.56px 0.56px at 117.7px 119.7px, rgba(200,215,255,0.22), transparent),
+    radial-gradient(0.63px 0.63px at 18.7px 20.2px, rgba(200,215,255,0.15), transparent),
+    radial-gradient(0.5px 0.5px at 102.0px 15.8px, rgba(200,215,255,0.14), transparent),
+    radial-gradient(0.52px 0.52px at 30.4px 109.1px, rgba(200,215,255,0.26), transparent),
+    radial-gradient(0.65px 0.65px at 184.2px 44.6px, rgba(200,215,255,0.18), transparent),
+    radial-gradient(1.01px 1.01px at 109.2px 36.9px, rgba(200,215,255,0.28), transparent),
+    radial-gradient(0.55px 0.55px at 139.8px 145.2px, rgba(200,215,255,0.14), transparent),
+    radial-gradient(1.0px 1.0px at 102.8px 79.4px, rgba(200,215,255,0.15), transparent);
+  background-repeat: repeat; background-size: 300px 300px;
+  animation: dash-stars-drift-1 240s linear infinite, dash-stars-twinkle 6s ease-in-out infinite alternate;
+}
+#dash-stars .dash-stars-2 {
+  position: absolute; inset: 0;
+  background-image: radial-gradient(1.22px 1.22px at 8.8px 361.4px, rgba(200,215,255,0.2), transparent),
+    radial-gradient(1.22px 1.22px at 206.4px 10.3px, rgba(200,215,255,0.34), transparent),
+    radial-gradient(1.06px 1.06px at 328.1px 264.6px, rgba(200,215,255,0.24), transparent),
+    radial-gradient(1.22px 1.22px at 63.5px 293.3px, rgba(200,215,255,0.3), transparent),
+    radial-gradient(1.39px 1.39px at 125.3px 84.8px, rgba(200,215,255,0.34), transparent),
+    radial-gradient(1.39px 1.39px at 324.0px 306.3px, rgba(200,215,255,0.3), transparent),
+    radial-gradient(1.11px 1.11px at 86.2px 196.7px, rgba(200,215,255,0.18), transparent),
+    radial-gradient(1.06px 1.06px at 10.6px 106.2px, rgba(200,215,255,0.29), transparent),
+    radial-gradient(1.46px 1.46px at 363.5px 169.9px, rgba(200,215,255,0.34), transparent),
+    radial-gradient(1.03px 1.03px at 362.9px 138.6px, rgba(200,215,255,0.22), transparent),
+    radial-gradient(1.27px 1.27px at 74.7px 77.7px, rgba(200,215,255,0.32), transparent),
+    radial-gradient(1.29px 1.29px at 319.4px 182.2px, rgba(200,215,255,0.31), transparent),
+    radial-gradient(1.45px 1.45px at 32.2px 251.0px, rgba(200,215,255,0.31), transparent),
+    radial-gradient(1.01px 1.01px at 285.1px 181.7px, rgba(200,215,255,0.31), transparent),
+    radial-gradient(1.48px 1.48px at 126.4px 304.3px, rgba(200,215,255,0.24), transparent),
+    radial-gradient(1.33px 1.33px at 152.5px 359.8px, rgba(200,215,255,0.21), transparent);
+  background-repeat: repeat; background-size: 380px 380px;
+  opacity: 0.8;
+  animation: dash-stars-drift-2 320s linear infinite;
+}
+@keyframes dash-stars-drift-1 { from { transform: translate(0,0); } to { transform: translate(-300px,-200px); } }
+@keyframes dash-stars-drift-2 { from { transform: translate(0,0); } to { transform: translate(380px,-260px); } }
+@keyframes dash-stars-twinkle { from { opacity: 0.55; } to { opacity: 0.85; } }
+:root[data-theme="light"] #dash-stars { opacity: 0.35; }
+@media (prefers-reduced-motion: reduce) {
+  #dash-stars .dash-stars-1, #dash-stars .dash-stars-2 { animation: none; }
+}
+
 #app-shell { display: none; }
 #login-gate {
   position: fixed; inset: 0; z-index: 9999;
@@ -621,6 +700,11 @@ tr:hover td { background: var(--bg); }
 </style>
 </head>
 <body>
+
+<div id="dash-stars" aria-hidden="true">
+  <div class="dash-stars-1"></div>
+  <div class="dash-stars-2"></div>
+</div>
 
 <!-- ══════════════════════════════════════════════════════════
      LOGIN GATE — visible by default. Hidden once a verified
