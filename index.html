@@ -43,7 +43,24 @@
   --green: #34d399; --green-light: rgba(52,211,153,0.20); --red: #f87171; --red-light: rgba(248,113,113,0.20);
   --amber: #fbbf24; --amber-light: rgba(251,191,36,0.18); --radius: 10px; --shadow: 0 6px 20px rgba(0,0,0,0.5);
 }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: radial-gradient(1200px 800px at 15% -10%, rgba(59,130,246,0.10), transparent 60%), var(--bg); color: var(--text); min-height: 100vh; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--text); min-height: 100vh; background-color: var(--bg);
+  /* Subtle reactor/atomic motif: a soft glow, a faint engineering grid, and a large
+     ghosted atom emblem tucked in a corner — all very low-opacity so tables and
+     forms stay perfectly readable on top. Not a stock photo (keeps this original/
+     copyright-clean) but still gives the page a distinct "facility" identity. */
+  background-image:
+    url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMDAgMjAwIj48ZyBmaWxsPSJub25lIiBzdHJva2U9InJnYmEoOTYsMTY1LDI1MCwwLjE2KSIgc3Ryb2tlLXdpZHRoPSIzIj48ZWxsaXBzZSBjeD0iMTAwIiBjeT0iMTAwIiByeD0iOTAiIHJ5PSIzNCIvPjxlbGxpcHNlIGN4PSIxMDAiIGN5PSIxMDAiIHJ4PSI5MCIgcnk9IjM0IiB0cmFuc2Zvcm09InJvdGF0ZSg2MCAxMDAgMTAwKSIvPjxlbGxpcHNlIGN4PSIxMDAiIGN5PSIxMDAiIHJ4PSI5MCIgcnk9IjM0IiB0cmFuc2Zvcm09InJvdGF0ZSgxMjAgMTAwIDEwMCkiLz48L2c+PGNpcmNsZSBjeD0iMTAwIiBjeT0iMTAwIiByPSI5IiBmaWxsPSJyZ2JhKDk2LDE2NSwyNTAsMC4xNikiLz48L3N2Zz4="),
+    radial-gradient(900px 700px at 90% 108%, rgba(52,211,153,0.06), transparent 60%),
+    radial-gradient(1200px 800px at 15% -10%, rgba(59,130,246,0.10), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(59,130,246,0.05) 0px, rgba(59,130,246,0.05) 1px, transparent 1px, transparent 42px),
+    repeating-linear-gradient(90deg, rgba(59,130,246,0.05) 0px, rgba(59,130,246,0.05) 1px, transparent 1px, transparent 42px);
+  background-position: 100% 100%, 0 0, 0 0, 0 0, 0 0;
+  background-repeat: no-repeat, no-repeat, no-repeat, repeat, repeat;
+  background-size: 760px 760px, auto, auto, 42px 42px, 42px 42px;
+  background-attachment: fixed, fixed, fixed, fixed, fixed;
+}
 
 /* HEADER */
 header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 60px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 12px rgba(0,0,0,0.35); }
@@ -418,7 +435,15 @@ tr:hover td { background: var(--bg); }
   --login-card: #ffffff; --login-border: #e2e7f5;
 }
 :root[data-theme="light"] #login-gate .aurora { opacity: 0.55; }
-:root[data-theme="light"] body { background: radial-gradient(1200px 800px at 15% -10%, rgba(37,99,235,0.06), transparent 60%), var(--bg); }
+:root[data-theme="light"] body {
+  background-color: var(--bg);
+  background-image:
+    url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMDAgMjAwIj48ZyBmaWxsPSJub25lIiBzdHJva2U9InJnYmEoMzcsOTksMjM1LDAuMTApIiBzdHJva2Utd2lkdGg9IjMiPjxlbGxpcHNlIGN4PSIxMDAiIGN5PSIxMDAiIHJ4PSI5MCIgcnk9IjM0Ii8+PGVsbGlwc2UgY3g9IjEwMCIgY3k9IjEwMCIgcng9IjkwIiByeT0iMzQiIHRyYW5zZm9ybT0icm90YXRlKDYwIDEwMCAxMDApIi8+PGVsbGlwc2UgY3g9IjEwMCIgY3k9IjEwMCIgcng9IjkwIiByeT0iMzQiIHRyYW5zZm9ybT0icm90YXRlKDEyMCAxMDAgMTAwKSIvPjwvZz48Y2lyY2xlIGN4PSIxMDAiIGN5PSIxMDAiIHI9IjkiIGZpbGw9InJnYmEoMzcsOTksMjM1LDAuMTApIi8+PC9zdmc+"),
+    radial-gradient(900px 700px at 90% 108%, rgba(22,163,74,0.05), transparent 60%),
+    radial-gradient(1200px 800px at 15% -10%, rgba(37,99,235,0.06), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(37,99,235,0.035) 0px, rgba(37,99,235,0.035) 1px, transparent 1px, transparent 42px),
+    repeating-linear-gradient(90deg, rgba(37,99,235,0.035) 0px, rgba(37,99,235,0.035) 1px, transparent 1px, transparent 42px);
+}
 
 #app-shell { display: none; }
 #login-gate {
@@ -434,12 +459,121 @@ tr:hover td { background: var(--bg); }
   background-size: 34px 34px; opacity: 0.7;
 }
 #login-gate .aurora { position: absolute; border-radius: 50%; filter: blur(90px); will-change: transform, opacity; }
-#login-gate .aurora-1 { width: 46vw; height: 46vw; max-width: 620px; max-height: 620px; background: radial-gradient(circle, rgba(76,139,255,0.55), rgba(76,139,255,0) 70%); top: -14vw; left: -10vw; animation: aurora-drift-1 20s ease-in-out infinite; }
-#login-gate .aurora-2 { width: 40vw; height: 40vw; max-width: 540px; max-height: 540px; background: radial-gradient(circle, rgba(139,92,246,0.45), rgba(139,92,246,0) 70%); bottom: -16vw; right: -8vw; animation: aurora-drift-2 24s ease-in-out infinite; }
-#login-gate .aurora-3 { width: 28vw; height: 28vw; max-width: 380px; max-height: 380px; background: radial-gradient(circle, rgba(34,195,214,0.4), rgba(34,195,214,0) 70%); top: 38%; right: 12%; animation: aurora-drift-3 27s ease-in-out infinite; }
-@keyframes aurora-drift-1 { 0%,100% { transform: translate(0,0) scale(1); opacity: 0.8; } 50% { transform: translate(4vw,3vw) scale(1.12); opacity: 1; } }
-@keyframes aurora-drift-2 { 0%,100% { transform: translate(0,0) scale(1); opacity: 0.7; } 50% { transform: translate(-3vw,-4vw) scale(1.08); opacity: 0.95; } }
-@keyframes aurora-drift-3 { 0%,100% { transform: translate(0,0) scale(1); opacity: 0.6; } 50% { transform: translate(-2vw,3vw) scale(1.18); opacity: 0.9; } }
+#login-gate .aurora-1 { width: 46vw; height: 46vw; max-width: 620px; max-height: 620px; background: radial-gradient(circle, rgba(76,139,255,0.55), rgba(76,139,255,0) 70%); top: -14vw; left: -10vw; animation: aurora-drift-1 15s ease-in-out infinite; }
+#login-gate .aurora-2 { width: 40vw; height: 40vw; max-width: 540px; max-height: 540px; background: radial-gradient(circle, rgba(139,92,246,0.45), rgba(139,92,246,0) 70%); bottom: -16vw; right: -8vw; animation: aurora-drift-2 18s ease-in-out infinite; }
+#login-gate .aurora-3 { width: 28vw; height: 28vw; max-width: 380px; max-height: 380px; background: radial-gradient(circle, rgba(34,195,214,0.4), rgba(34,195,214,0) 70%); top: 38%; right: 12%; animation: aurora-drift-3 21s ease-in-out infinite; }
+@keyframes aurora-drift-1 { 0%,100% { transform: translate(0,0) scale(1); opacity: 0.8; } 50% { transform: translate(7vw,5vw) scale(1.18); opacity: 1; } }
+@keyframes aurora-drift-2 { 0%,100% { transform: translate(0,0) scale(1); opacity: 0.7; } 50% { transform: translate(-6vw,-6vw) scale(1.12); opacity: 0.95; } }
+@keyframes aurora-drift-3 { 0%,100% { transform: translate(0,0) scale(1); opacity: 0.6; } 50% { transform: translate(-4vw,5vw) scale(1.25); opacity: 0.9; } }
+
+/* ── STARFIELD (space effect) ─────────────────────────────────────
+   Two independently-drifting layers of randomly-placed dots (parallax
+   depth) plus a slow twinkle, and a couple of occasional shooting
+   stars streaking across. Pure CSS, no images. */
+#login-gate .stars { position: absolute; inset: -20%; pointer-events: none; }
+#login-gate .stars-1 {
+  background-image: radial-gradient(0.79px 0.79px at 166.3px 6.5px, rgba(255,255,255,0.44), transparent),
+    radial-gradient(1.22px 1.22px at 191.5px 175.9px, rgba(255,255,255,0.38), transparent),
+    radial-gradient(0.75px 0.75px at 109.7px 7.7px, rgba(255,255,255,0.55), transparent),
+    radial-gradient(1.05px 1.05px at 6.9px 51.7px, rgba(255,255,255,0.57), transparent),
+    radial-gradient(1.17px 1.17px at 57.3px 153.2px, rgba(255,255,255,0.35), transparent),
+    radial-gradient(0.84px 0.84px at 209.5px 181.5px, rgba(255,255,255,0.41), transparent),
+    radial-gradient(0.66px 0.66px at 248.9px 87.5px, rgba(255,255,255,0.39), transparent),
+    radial-gradient(1.16px 1.16px at 220.3px 157.0px, rgba(255,255,255,0.64), transparent),
+    radial-gradient(0.86px 0.86px at 139.4px 253.0px, rgba(255,255,255,0.57), transparent),
+    radial-gradient(1.2px 1.2px at 215.6px 160.8px, rgba(255,255,255,0.58), transparent),
+    radial-gradient(0.76px 0.76px at 183.2px 11.9px, rgba(255,255,255,0.47), transparent),
+    radial-gradient(0.67px 0.67px at 20.7px 60.5px, rgba(255,255,255,0.46), transparent),
+    radial-gradient(0.86px 0.86px at 165.3px 94.9px, rgba(255,255,255,0.43), transparent),
+    radial-gradient(1.05px 1.05px at 69.4px 243.5px, rgba(255,255,255,0.59), transparent),
+    radial-gradient(0.71px 0.71px at 44.5px 189.6px, rgba(255,255,255,0.5), transparent),
+    radial-gradient(0.99px 0.99px at 257.3px 166.4px, rgba(255,255,255,0.62), transparent),
+    radial-gradient(0.76px 0.76px at 219.1px 201.8px, rgba(255,255,255,0.36), transparent),
+    radial-gradient(0.75px 0.75px at 82.0px 69.6px, rgba(255,255,255,0.73), transparent),
+    radial-gradient(1.06px 1.06px at 227.9px 81.8px, rgba(255,255,255,0.51), transparent),
+    radial-gradient(0.79px 0.79px at 237.8px 119.3px, rgba(255,255,255,0.45), transparent),
+    radial-gradient(1.01px 1.01px at 146.0px 68.3px, rgba(255,255,255,0.71), transparent),
+    radial-gradient(1.3px 1.3px at 103.8px 57.0px, rgba(255,255,255,0.55), transparent),
+    radial-gradient(0.68px 0.68px at 23.6px 12.3px, rgba(255,255,255,0.6), transparent),
+    radial-gradient(0.64px 0.64px at 205.9px 109.8px, rgba(255,255,255,0.5), transparent),
+    radial-gradient(1.28px 1.28px at 259.0px 137.6px, rgba(255,255,255,0.69), transparent),
+    radial-gradient(1.08px 1.08px at 3.0px 187.4px, rgba(255,255,255,0.56), transparent),
+    radial-gradient(0.68px 0.68px at 69.4px 166.7px, rgba(255,255,255,0.52), transparent),
+    radial-gradient(1.21px 1.21px at 118.0px 248.0px, rgba(255,255,255,0.46), transparent),
+    radial-gradient(1.24px 1.24px at 130.2px 46.4px, rgba(255,255,255,0.7), transparent),
+    radial-gradient(1.03px 1.03px at 77.6px 166.1px, rgba(255,255,255,0.41), transparent),
+    radial-gradient(1.15px 1.15px at 198.3px 140.2px, rgba(255,255,255,0.56), transparent),
+    radial-gradient(0.61px 0.61px at 0.1px 84.3px, rgba(255,255,255,0.72), transparent),
+    radial-gradient(0.82px 0.82px at 228.5px 216.2px, rgba(255,255,255,0.37), transparent),
+    radial-gradient(0.66px 0.66px at 228.3px 246.2px, rgba(255,255,255,0.54), transparent),
+    radial-gradient(1.14px 1.14px at 18.0px 197.8px, rgba(255,255,255,0.4), transparent),
+    radial-gradient(0.79px 0.79px at 123.6px 142.9px, rgba(255,255,255,0.7), transparent),
+    radial-gradient(0.98px 0.98px at 110.0px 55.1px, rgba(255,255,255,0.64), transparent),
+    radial-gradient(1.3px 1.3px at 52.3px 81.0px, rgba(255,255,255,0.61), transparent),
+    radial-gradient(0.68px 0.68px at 113.9px 134.6px, rgba(255,255,255,0.44), transparent),
+    radial-gradient(0.76px 0.76px at 87.9px 153.0px, rgba(255,255,255,0.44), transparent),
+    radial-gradient(0.76px 0.76px at 18.5px 164.1px, rgba(255,255,255,0.71), transparent),
+    radial-gradient(0.77px 0.77px at 223.5px 18.4px, rgba(255,255,255,0.62), transparent),
+    radial-gradient(1.25px 1.25px at 55.7px 34.4px, rgba(255,255,255,0.58), transparent),
+    radial-gradient(1.17px 1.17px at 122.9px 204.0px, rgba(255,255,255,0.43), transparent),
+    radial-gradient(0.9px 0.9px at 25.2px 112.1px, rgba(255,255,255,0.54), transparent),
+    radial-gradient(1.29px 1.29px at 189.6px 175.1px, rgba(255,255,255,0.39), transparent),
+    radial-gradient(1.2px 1.2px at 104.7px 88.2px, rgba(255,255,255,0.45), transparent),
+    radial-gradient(0.9px 0.9px at 49.5px 116.6px, rgba(255,255,255,0.46), transparent),
+    radial-gradient(0.91px 0.91px at 64.9px 240.0px, rgba(255,255,255,0.69), transparent),
+    radial-gradient(1.3px 1.3px at 143.1px 13.2px, rgba(255,255,255,0.68), transparent),
+    radial-gradient(1.19px 1.19px at 251.9px 240.9px, rgba(255,255,255,0.42), transparent),
+    radial-gradient(0.88px 0.88px at 126.3px 55.6px, rgba(255,255,255,0.37), transparent),
+    radial-gradient(0.79px 0.79px at 98.5px 256.2px, rgba(255,255,255,0.66), transparent),
+    radial-gradient(1.27px 1.27px at 118.3px 110.0px, rgba(255,255,255,0.75), transparent),
+    radial-gradient(0.71px 0.71px at 144.5px 186.8px, rgba(255,255,255,0.47), transparent);
+  background-repeat: repeat; background-size: 260px 260px;
+  animation: stars-drift-1 160s linear infinite, stars-twinkle 4.5s ease-in-out infinite alternate;
+}
+#login-gate .stars-2 {
+  background-image: radial-gradient(1.63px 1.63px at 329.4px 196.9px, rgba(255,255,255,0.85), transparent),
+    radial-gradient(1.6px 1.6px at 19.4px 198.6px, rgba(255,255,255,0.89), transparent),
+    radial-gradient(1.26px 1.26px at 53.5px 326.7px, rgba(255,255,255,0.62), transparent),
+    radial-gradient(1.39px 1.39px at 202.3px 229.6px, rgba(255,255,255,0.6), transparent),
+    radial-gradient(1.68px 1.68px at 302.7px 83.7px, rgba(255,255,255,0.8), transparent),
+    radial-gradient(1.62px 1.62px at 142.5px 198.4px, rgba(255,255,255,0.92), transparent),
+    radial-gradient(1.39px 1.39px at 69.4px 243.5px, rgba(255,255,255,0.71), transparent),
+    radial-gradient(1.45px 1.45px at 228.4px 102.0px, rgba(255,255,255,0.85), transparent),
+    radial-gradient(2.0px 2.0px at 24.7px 155.8px, rgba(255,255,255,0.95), transparent),
+    radial-gradient(1.41px 1.41px at 24.9px 72.5px, rgba(255,255,255,0.92), transparent),
+    radial-gradient(1.5px 1.5px at 299.5px 299.0px, rgba(255,255,255,0.61), transparent),
+    radial-gradient(1.69px 1.69px at 283.5px 239.2px, rgba(255,255,255,0.94), transparent),
+    radial-gradient(1.85px 1.85px at 222.4px 2.7px, rgba(255,255,255,0.67), transparent),
+    radial-gradient(1.31px 1.31px at 225.6px 319.2px, rgba(255,255,255,0.6), transparent),
+    radial-gradient(1.42px 1.42px at 36.4px 188.1px, rgba(255,255,255,0.79), transparent),
+    radial-gradient(1.71px 1.71px at 244.0px 69.2px, rgba(255,255,255,0.66), transparent),
+    radial-gradient(1.88px 1.88px at 166.1px 307.8px, rgba(255,255,255,0.59), transparent),
+    radial-gradient(1.2px 1.2px at 144.0px 94.1px, rgba(255,255,255,0.86), transparent),
+    radial-gradient(1.79px 1.79px at 216.6px 89.1px, rgba(255,255,255,0.77), transparent),
+    radial-gradient(1.26px 1.26px at 145.4px 3.3px, rgba(255,255,255,0.9), transparent),
+    radial-gradient(1.87px 1.87px at 307.3px 185.5px, rgba(255,255,255,0.78), transparent),
+    radial-gradient(1.45px 1.45px at 50.4px 43.3px, rgba(255,255,255,0.91), transparent);
+  background-repeat: repeat; background-size: 340px 340px;
+  opacity: 0.85;
+  animation: stars-drift-2 230s linear infinite;
+}
+@keyframes stars-drift-1 { from { transform: translate(0,0); } to { transform: translate(-260px,-180px); } }
+@keyframes stars-drift-2 { from { transform: translate(0,0); } to { transform: translate(340px,-240px); } }
+@keyframes stars-twinkle { from { opacity: 0.7; } to { opacity: 1; } }
+
+#login-gate .shooting-star { position: absolute; width: 3px; height: 3px; background: #fff; border-radius: 50%; opacity: 0; pointer-events: none; }
+#login-gate .shooting-star::before { content: ''; position: absolute; top: 50%; right: 0; width: 140px; height: 1px; background: linear-gradient(to left, rgba(255,255,255,0.95), transparent); transform: translateY(-50%); }
+#login-gate .shooting-star-1 { top: 16%; left: 78%; animation: shoot 9s linear infinite; animation-delay: 2s; }
+#login-gate .shooting-star-2 { top: 52%; left: 92%; animation: shoot 13s linear infinite; animation-delay: 6.5s; }
+@keyframes shoot {
+  0% { transform: translate(0,0) rotate(-32deg); opacity: 0; }
+  1% { opacity: 1; }
+  7% { transform: translate(-420px,260px) rotate(-32deg); opacity: 0; }
+  100% { transform: translate(-420px,260px) rotate(-32deg); opacity: 0; }
+}
+:root[data-theme="light"] #login-gate .stars-1,
+:root[data-theme="light"] #login-gate .stars-2 { opacity: 0.2; }
+:root[data-theme="light"] #login-gate .shooting-star { display: none; }
 #login-gate header {
   position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between;
   padding: 26px 44px; height: auto; background: transparent; border: none;
@@ -481,7 +615,8 @@ tr:hover td { background: var(--bg); }
   #login-gate .eyebrow { margin-left: auto; margin-right: auto; }
 }
 @media (prefers-reduced-motion: reduce) {
-  #login-gate .aurora { animation: none; }
+  #login-gate .aurora, #login-gate .stars-1, #login-gate .stars-2, #login-gate .shooting-star { animation: none; opacity: 0.5; }
+  #login-gate .shooting-star { display: none; }
 }
 </style>
 </head>
@@ -495,6 +630,12 @@ tr:hover td { background: var(--bg); }
 <div id="login-gate">
   <div class="bg-layer">
     <div class="bg-dots"></div>
+    <div class="stars">
+      <div class="stars-1"></div>
+      <div class="stars-2"></div>
+    </div>
+    <div class="shooting-star shooting-star-1"></div>
+    <div class="shooting-star shooting-star-2"></div>
     <div class="aurora aurora-1"></div>
     <div class="aurora aurora-2"></div>
     <div class="aurora aurora-3"></div>
