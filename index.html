@@ -1033,8 +1033,7 @@ tr:hover td { background: var(--bg); }
 <div id="tab-dashboard" class="tab-section">
   <div class="top-row">
     <label>Viewing date:</label>
-    <input type="date" id="selected-date">
-    <button class="btn" onclick="loadDate()">Load</button>
+    <input type="date" id="selected-date" onchange="loadDate()">
     <button class="btn btn-primary" onclick="setToday()">Today</button>
   </div>
   <div class="bunker-tabs" id="dashboard-bunker-tabs">
