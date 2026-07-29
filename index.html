@@ -1035,7 +1035,33 @@ tr:hover td { background: var(--bg); }
     <label>Viewing date:</label>
     <input type="date" id="selected-date" onchange="loadDate()">
     <button class="btn btn-primary" onclick="setToday()">Today</button>
+    <button class="btn" onclick="toggleLogCalendar()">🗓 Month View</button>
   </div>
+
+  <div class="calendar-card" id="log-calendar-card" style="display:none">
+    <div class="calendar-card-header">
+      <div>
+        <h4>🗓️ Logging Status</h4>
+        <p class="cal-sub">Green = fully logged · Red = still needs an entry · click any day to jump to it</p>
+      </div>
+      <div class="cal-controls">
+        <button class="btn btn-sm" onclick="logCalPrevMonth()">‹</button>
+        <span id="log-cal-month-label" style="font-weight:600;min-width:130px;text-align:center;display:inline-block"></span>
+        <button class="btn btn-sm" onclick="logCalNextMonth()">›</button>
+        <button class="btn btn-sm btn-primary" onclick="logCalToday()">Today</button>
+      </div>
+    </div>
+    <div class="cal-legend">
+      <span class="cal-legend-item"><span class="cal-dot cal-dot-green"></span> Fully logged</span>
+      <span class="cal-legend-item"><span class="cal-dot cal-dot-red"></span> Needs an entry</span>
+      <span class="cal-legend-item"><span class="cal-dot" style="background:var(--surface);border:2px solid var(--border)"></span> Upcoming</span>
+    </div>
+    <div class="cal-weekdays">
+      <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
+    </div>
+    <div class="cal-grid" id="log-cal-grid"></div>
+  </div>
+
   <div class="bunker-tabs" id="dashboard-bunker-tabs">
     <button class="rtab active" onclick="selectDashboardBunker('ALL',this)">All Bunkers</button>
     <button class="rtab" onclick="selectDashboardBunker('H4',this)">H4</button>
@@ -1338,6 +1364,7 @@ function initFirebase(cfg) {
       allData = serverData;
       persistLocalData();
       loadDayData(); renderMonthly();
+      if (logCalVisible) renderLogCalendar();
       if (document.getElementById('tab-analysis').classList.contains('active')) renderAnalysis();
     });
     onValue(ref(db, 'bookings'), snap => {
@@ -1354,6 +1381,7 @@ function initFirebase(cfg) {
       allBookings = serverBookings;
       persistLocalBookings();
       refreshBookingView(); if (currentDate) renderCards(); renderMonthly(); renderBookingCalendar();
+      if (logCalVisible) renderLogCalendar();
       if (document.getElementById('tab-analysis').classList.contains('active')) renderAnalysis();
     });
     return true;
@@ -1582,6 +1610,7 @@ function loadDayData() {
   dayData = JSON.parse(JSON.stringify(allData[currentDate] || {}));
   renderCards();
   document.getElementById('daily-notes').value = dayData.notes || '';
+  if (logCalVisible) renderLogCalendar();
 }
 
 async function saveToDB() {
@@ -1629,6 +1658,7 @@ window.saveBunker = async function(rId) {
     btn.classList.add('saved'); btn.textContent = '✓ Saved';
     setTimeout(() => { btn.classList.remove('saved'); btn.textContent = 'Save'; }, 2000);
     renderMonthly();
+    if (logCalVisible) renderLogCalendar();
   }
 }
 
@@ -1651,11 +1681,98 @@ function collectBunkerData(rId) {
   dayData[rId] = { notes, slotActual, reasonNotRunning };
 }
 
+// ── DAILY LOG MINI-CALENDAR (logging status by day) ──────────────
+// Colors each day by whether logging is actually COMPLETE for the currently
+// selected bunker filter — not just whether a booking exists. A day counts
+// as complete when every relevant bunker either has its Actual Hrs saved
+// (for a booked slot) or a Reason Not Running saved (for an idle bunker).
+let logCalMonth = new Date().getMonth();
+let logCalYear = new Date().getFullYear();
+let logCalVisible = false;
+
+window.toggleLogCalendar = function() {
+  logCalVisible = !logCalVisible;
+  document.getElementById('log-calendar-card').style.display = logCalVisible ? 'block' : 'none';
+  if (logCalVisible) renderLogCalendar();
+}
+
+window.logCalPrevMonth = function() { logCalMonth--; if (logCalMonth < 0) { logCalMonth = 11; logCalYear--; } renderLogCalendar(); }
+window.logCalNextMonth = function() { logCalMonth++; if (logCalMonth > 11) { logCalMonth = 0; logCalYear++; } renderLogCalendar(); }
+window.logCalToday = function() { const t = new Date(); logCalMonth = t.getMonth(); logCalYear = t.getFullYear(); renderLogCalendar(); }
+
+// Returns 'complete', 'pending', or 'future' for a given date, judged against
+// whichever bunker(s) the Daily Log's own filter currently has selected.
+function getDayLogStatus(dateStr) {
+  if (dateStr > todayStr()) return 'future';
+  const bunkersToCheck = dashboardBunkerFilter === 'ALL' ? BUNKERS : [dashboardBunkerFilter];
+  const rd = allData[dateStr] || {};
+  for (const rId of bunkersToCheck) {
+    const slots = getBookingsForDay(rId, dateStr);
+    const bunkerRd = rd[rId] || {};
+    if (slots.length > 0) {
+      const allSlotsLogged = slots.every(slot => bunkerRd.slotActual && bunkerRd.slotActual[slot.id] != null && bunkerRd.slotActual[slot.id] !== '');
+      if (!allSlotsLogged) return 'pending';
+    } else {
+      if (!bunkerRd.reasonNotRunning) return 'pending';
+    }
+  }
+  return 'complete';
+}
+
+function renderLogCalendar() {
+  const grid = document.getElementById('log-cal-grid');
+  if (!grid) return;
+  document.getElementById('log-cal-month-label').textContent = `${MONTHS[logCalMonth]} ${logCalYear}`;
+  grid.innerHTML = '';
+
+  const firstOfMonth = new Date(logCalYear, logCalMonth, 1);
+  let startOffset = firstOfMonth.getDay() - 1;
+  if (startOffset < 0) startOffset = 6;
+  const daysInMonth = new Date(logCalYear, logCalMonth + 1, 0).getDate();
+  const daysInPrevMonth = new Date(logCalYear, logCalMonth, 0).getDate();
+
+  const cells = [];
+  for (let i = startOffset; i > 0; i--) cells.push({ day: daysInPrevMonth - i + 1, otherMonth: true });
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ day: d, otherMonth: false, dateStr: `${logCalYear}-${String(logCalMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}` });
+  }
+  let next = 1;
+  while (cells.length % 7 !== 0) cells.push({ day: next++, otherMonth: true });
+
+  const today = todayStr();
+  const viewing = document.getElementById('selected-date').value;
+  cells.forEach(c => {
+    const div = document.createElement('div');
+    if (c.otherMonth) {
+      div.className = 'cal-day cal-day-muted';
+      div.innerHTML = `<span class="cal-day-num">${c.day}</span>`;
+      grid.appendChild(div);
+      return;
+    }
+    const status = getDayLogStatus(c.dateStr);
+    div.className = 'cal-day ' + (status === 'complete' ? 'cal-day-booked' : status === 'pending' ? 'cal-day-free' : '');
+    if (status === 'future') div.style.opacity = '0.5';
+    if (c.dateStr === today) div.classList.add('cal-day-today');
+    if (c.dateStr === viewing) div.classList.add('cal-day-selected');
+    div.style.cursor = 'pointer';
+    div.onclick = () => selectLogCalDate(c.dateStr);
+    div.innerHTML = `<span class="cal-day-num">${c.day}</span>`;
+    grid.appendChild(div);
+  });
+}
+
+function selectLogCalDate(dateStr) {
+  document.getElementById('selected-date').value = dateStr;
+  loadDate();
+  renderLogCalendar();
+}
+
 // ── RENDER BUNKER CARDS ──────────────────────────────────────
 window.selectDashboardBunker = function(rId, btn) {
   dashboardBunkerFilter = rId;
   document.querySelectorAll('#dashboard-bunker-tabs .rtab').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
+  if (logCalVisible) renderLogCalendar();
   renderCards();
 }
 
