@@ -1337,6 +1337,68 @@ function notifyApproversOfNewBooking(booking) {
     .catch(e => console.error('EmailJS send failed for', booking.id, e));
 }
 
+// ── TEMPLATE 2: decision (approved/rejected) sent back to the requester ──
+// Create a second EmailJS template with "To Email" set to the DYNAMIC
+// variable {{to_email}} (not a fixed address) — this one's recipient
+// changes per booking. Paste its Template ID below once created.
+const EMAILJS_TEMPLATE_DECISION = 'template_nk4b66i';
+
+function notifyRequesterOfDecision(booking, decision) {
+  if (!booking.submittedByEmail) {
+    console.warn('No submitter email on file for booking', booking.id, '— skipping decision email');
+    return;
+  }
+  if (!emailjsReady || !EMAILJS_TEMPLATE_DECISION || EMAILJS_TEMPLATE_DECISION.startsWith('PASTE_')) {
+    console.warn('EmailJS decision template not configured yet — skipping email for booking', booking.id);
+    return;
+  }
+  const durationHrs = (((booking.endMins || 0) - (booking.startMins || 0)) / 60).toFixed(2);
+  const params = {
+    to_email: booking.submittedByEmail,
+    booking_id: booking.id,
+    bunker: booking.bunker,
+    date: fmtDate(booking.date),
+    start_time: fmt24(booking.start),
+    end_time: fmt24(booking.end),
+    duration: durationHrs + ' hrs',
+    requester_name: booking.name,
+    decision: decision === 'confirmed' ? 'Approved' : 'Declined',
+    decision_message: decision === 'confirmed'
+      ? 'Good news \u2014 your booking request has been approved and added to the schedule.'
+      : 'Your booking request has been declined. Please submit a new request for a different time slot.',
+  };
+  emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_DECISION, params)
+    .then(() => console.log('Decision email sent for', booking.id))
+    .catch(e => console.error('EmailJS send failed for', booking.id, e));
+}
+
+// ── TEMPLATE 3: removal notice (cancelled/deleted) sent to approvers ────
+// Create a third EmailJS template, "To Email" set to a FIXED comma-separated
+// list (same 5 addresses as the pending-approval template, or a different
+// group if you'd rather). Paste its Template ID below once created.
+const EMAILJS_TEMPLATE_REMOVED = 'PASTE_REMOVED_TEMPLATE_ID_HERE';
+
+function notifyAdminsOfRemoval(booking, action) {
+  if (!emailjsReady || !EMAILJS_TEMPLATE_REMOVED || EMAILJS_TEMPLATE_REMOVED.startsWith('PASTE_')) {
+    console.warn('EmailJS removal template not configured yet — skipping email for booking', booking.id);
+    return;
+  }
+  const params = {
+    booking_id: booking.id,
+    bunker: booking.bunker,
+    date: fmtDate(booking.date),
+    start_time: fmt24(booking.start),
+    end_time: fmt24(booking.end),
+    requester_name: booking.name,
+    requester_org: booking.org,
+    action: action === 'deleted' ? 'Deleted' : 'Cancelled',
+    removed_by: currentUserEmail || 'unknown',
+  };
+  emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_REMOVED, params)
+    .then(() => console.log('Removal notification sent for', booking.id))
+    .catch(e => console.error('EmailJS send failed for', booking.id, e));
+}
+
 const BUNKERS = ['H4','H5','SKY-1','SKY-2','B1'];
 const BUNKER_COLORS = ['r1','r2','r3','r4','r5'];
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -2426,6 +2488,7 @@ window.checkAndBook = async function() {
     id, bunker, date, start, end, startMins: sm, endMins: em, name, org, costCentre, purpose, contact,
     status: prior ? prior.status : 'pending',
     bookedAt: prior ? prior.bookedAt : new Date().toISOString(),
+    submittedByEmail: prior ? prior.submittedByEmail : currentUserEmail,
     ...(isEdit ? { editedAt: new Date().toISOString() } : {})
   };
   allBookings[id] = booking;
@@ -2459,7 +2522,8 @@ window.openCancelModal = function(id) {
 window.closeCancelModal = function() { document.getElementById('cancel-modal').classList.remove('open'); cancelBookingId = null; }
 window.confirmCancel = async function() {
   if (!cancelBookingId) return;
-  if (allBookings[cancelBookingId]) allBookings[cancelBookingId].status = 'cancelled';
+  const b = allBookings[cancelBookingId];
+  if (b) b.status = 'cancelled';
   persistLocalBookings();
   if (db) {
     try { await set(ref(db, `bookings/${cancelBookingId}/status`), 'cancelled'); }
@@ -2469,6 +2533,7 @@ window.confirmCancel = async function() {
   if (currentDate) renderCards();
   renderMonthly();
   renderBookingCalendar();
+  if (b) notifyAdminsOfRemoval(b, 'cancelled');
   closeCancelModal();
   toast(`Booking ${cancelBookingId} cancelled`);
 }
@@ -2493,6 +2558,7 @@ window.approveBooking = async function(id) {
   if (currentDate) renderCards();
   renderMonthly();
   renderBookingCalendar();
+  notifyRequesterOfDecision(b, 'confirmed');
   toast(`✅ Booking ${id} approved`);
 }
 
@@ -2512,6 +2578,7 @@ window.rejectBooking = async function(id) {
   if (currentDate) renderCards();
   renderMonthly();
   renderBookingCalendar();
+  notifyRequesterOfDecision(b, 'rejected');
   toast(`Booking ${id} rejected — slot is available again`);
 }
 
@@ -2530,6 +2597,7 @@ window.closeDeleteModal = function() { document.getElementById('delete-modal').c
 window.confirmDelete = async function() {
   if (!deleteBookingId) return;
   const id = deleteBookingId;
+  const b = allBookings[id]; // keep a copy for the notification before it's gone
   delete allBookings[id];        // fully removed — the slot is now free again
   persistLocalBookings();
   if (db) {
@@ -2540,6 +2608,7 @@ window.confirmDelete = async function() {
   if (currentDate) renderCards();
   renderMonthly();
   renderBookingCalendar();
+  if (b) notifyAdminsOfRemoval(b, 'deleted');
   closeDeleteModal();
   toast(`Booking ${id} deleted — slot is available again`);
 }
