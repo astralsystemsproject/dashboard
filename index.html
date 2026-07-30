@@ -961,6 +961,44 @@ tr:hover td { background: var(--bg); }
     </div>
   </div>
 
+  <!-- ALL PENDING APPROVALS (every date, not just the one selected above) -->
+  <div class="bookings-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <h4 style="margin-bottom:0">⏳ All Pending Approvals <span style="color:var(--amber)">(<span id="pending-section-count">0</span>)</span></h4>
+      <button class="btn btn-sm" onclick="toggleAllPendingSection()">Show / Hide</button>
+    </div>
+    <div id="pending-section-body" style="display:block">
+      <div style="overflow-x:auto;max-height:420px;overflow-y:auto">
+        <table>
+          <thead><tr>
+            <th>Booking ID</th><th>Bunker</th><th>Date</th><th>From</th><th>To</th><th>Duration</th>
+            <th>Name</th><th>Cost Centre</th><th>Organization</th><th>Reason of Running</th><th>Status</th><th>Action</th>
+          </tr></thead>
+          <tbody id="pending-approvals-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- CANCELLED / REJECTED BOOKINGS (every date) -->
+  <div class="bookings-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <h4 style="margin-bottom:0">🚫 Cancelled &amp; Rejected Bookings <span style="color:var(--muted)">(<span id="cancelled-section-count">0</span>)</span></h4>
+      <button class="btn btn-sm" onclick="toggleCancelledSection()">Show / Hide</button>
+    </div>
+    <div id="cancelled-section-body" style="display:none">
+      <div style="overflow-x:auto;max-height:420px;overflow-y:auto">
+        <table>
+          <thead><tr>
+            <th>Booking ID</th><th>Bunker</th><th>Date</th><th>From</th><th>To</th><th>Duration</th>
+            <th>Name</th><th>Cost Centre</th><th>Organization</th><th>Reason of Running</th><th>Status</th><th>Action</th>
+          </tr></thead>
+          <tbody id="cancelled-bookings-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <!-- FULL CALENDAR VIEW -->
   <div class="calendar-card" id="calendar-card">
     <div class="calendar-card-header">
@@ -2310,6 +2348,8 @@ window.setBookingToday = function() {
 
 window.refreshBookingView = function() {
   renderPendingApprovalBanner();
+  renderAllPendingSection();
+  renderCancelledSection();
   const date = document.getElementById('booking-view-date').value;
   if (!date) return;
   const bunkers = activeBookingBunker === 'ALL' ? BUNKERS : [activeBookingBunker];
@@ -2368,7 +2408,11 @@ window.refreshBookingView = function() {
     tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:20px">No bookings for this day</td></tr>`;
     return;
   }
-  tbody.innerHTML = allForDay.map(b => `<tr${b.status==='pending'?' style="background:rgba(251,191,36,0.06)"':''}>
+  tbody.innerHTML = allForDay.map(b => buildBookingRow(b)).join('');
+}
+
+function buildBookingRow(b) {
+  return `<tr${b.status==='pending'?' style="background:rgba(251,191,36,0.06)"':''}>
     <td><span class="bid">${b.id}</span></td>
     <td>${(b.bunker||'')}</td>
     <td style="white-space:nowrap">${fmtDate(b.date)}</td>
@@ -2386,7 +2430,7 @@ window.refreshBookingView = function() {
       ${b.status!=='cancelled'&&b.status!=='rejected'?`<button class="cancel-badge" onclick="openCancelModal('${b.id}')">Cancel</button>`:''}
       <button class="cancel-badge" style="background:rgba(248,113,113,0.12);color:var(--red);border-color:rgba(248,113,113,0.35)" onclick="openDeleteModal('${b.id}')">Delete</button>
     </td>
-  </tr>`).join('');
+  </tr>`;
 }
 
 function bookingStatusBadge(status) {
@@ -2394,6 +2438,60 @@ function bookingStatusBadge(status) {
   if (status === 'rejected') return '<span style="color:var(--red);font-size:0.75rem;font-weight:600">Rejected</span>';
   if (status === 'pending') return '<span style="background:var(--amber-light);color:var(--amber);font-size:0.7rem;font-weight:600;padding:2px 8px;border-radius:4px;display:inline-block">Pending Approval</span>';
   return '<span class="confirmed-badge">Confirmed</span>';
+}
+
+// ── ALL PENDING APPROVALS (across every date) ─────────────────
+// So approvers don't have to hunt through the calendar date by date —
+// every pending request, from any day, in one sorted list.
+function renderAllPendingSection() {
+  const tbody = document.getElementById('pending-approvals-tbody');
+  if (!tbody) return;
+  const pending = Object.entries(allBookings)
+    .filter(([id, b]) => b.status === 'pending')
+    .map(([id, b]) => ({ id, ...b }))
+    .sort((a, b) => (a.date + String(a.startMins||0).padStart(5,'0')).localeCompare(b.date + String(b.startMins||0).padStart(5,'0')));
+
+  const countEl = document.getElementById('pending-section-count');
+  if (countEl) countEl.textContent = pending.length;
+
+  if (pending.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:20px">No pending requests \u2014 all caught up</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = pending.map(b => buildBookingRow(b)).join('');
+}
+
+window.toggleAllPendingSection = function() {
+  const body = document.getElementById('pending-section-body');
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  if (!open) renderAllPendingSection();
+}
+
+// ── CANCELLED / REJECTED BOOKINGS (across every date) ─────────
+function renderCancelledSection() {
+  const tbody = document.getElementById('cancelled-bookings-tbody');
+  if (!tbody) return;
+  const removed = Object.entries(allBookings)
+    .filter(([id, b]) => b.status === 'cancelled' || b.status === 'rejected')
+    .map(([id, b]) => ({ id, ...b }))
+    .sort((a, b) => (b.date + String(b.startMins||0).padStart(5,'0')).localeCompare(a.date + String(a.startMins||0).padStart(5,'0'))); // most recent first
+
+  const countEl = document.getElementById('cancelled-section-count');
+  if (countEl) countEl.textContent = removed.length;
+
+  if (removed.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:20px">No cancelled or rejected bookings</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = removed.map(b => buildBookingRow(b)).join('');
+}
+
+window.toggleCancelledSection = function() {
+  const body = document.getElementById('cancelled-section-body');
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  if (!open) renderCancelledSection();
 }
 
 // ── BOOKING FORM ──────────────────────────────────────────────
