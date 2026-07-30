@@ -22,6 +22,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <!-- Firebase "compat" build (classic script, not an ES module) — this is what
      lets the whole app run identically whether it's opened straight from disk
      (file://) or hosted (https://). The modular SDK loaded via `import()`
@@ -141,6 +142,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; }
 .slot-chip { padding: 6px 14px; border-radius: 20px; font-size: 0.78rem; font-weight: 500; }
 .slot-free { background: var(--green-light); color: var(--green); border: 1px solid rgba(52,211,153,0.35); }
 .slot-booked { background: var(--red-light); color: var(--red); border: 1px solid rgba(248,113,113,0.35); }
+.slot-pending { background: var(--amber-light); color: var(--amber); border: 1px solid rgba(251,191,36,0.4); }
 .slot-empty { color: var(--muted); font-size: 0.82rem; font-style: italic; }
 .bookings-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); margin-bottom: 1.2rem; }
 .bookings-card h4 { font-size: 0.85rem; font-weight: 600; margin-bottom: 12px; }
@@ -921,6 +923,7 @@ tr:hover td { background: var(--bg); }
     <div>
       <h2>Bunker Booking System</h2>
       <p>Book a bunker for your experiment. Check available slots before booking.</p>
+      <p id="pending-approval-banner" style="display:none;color:var(--amber);font-weight:600;margin-top:6px"></p>
     </div>
     <button class="btn btn-primary" onclick="openBookingForm()">+ New Booking</button>
   </div>
@@ -1270,6 +1273,70 @@ window.toggleTheme = function () {
 // early <head> script already set on <html>).
 applyChartTheme(getCurrentTheme());
 
+// ── BOOKING APPROVAL ──────────────────────────────────────────
+// New bookings start as 'pending' and hold their time slot (same as a
+// confirmed booking) until one of these people approves or rejects it.
+// NOTE: this is a UI-level convenience, same as the email-domain check at
+// sign-in — the real, non-bypassable boundary would be Firebase Security
+// Rules restricting writes to a booking's `status` field to these emails.
+const APPROVER_EMAILS = [
+  'han-ying@astralsystems.com',
+  'jiffin@astralsystems.com',
+  'barry.ward@astralsystems.com',
+  'tomws@astralsystems.com',
+  'alex@astralsystems.com',
+];
+let currentUserEmail = '';
+function isApprover() { return APPROVER_EMAILS.includes((currentUserEmail || '').toLowerCase()); }
+
+function renderPendingApprovalBanner() {
+  const el = document.getElementById('pending-approval-banner');
+  if (!el) return;
+  if (!isApprover()) { el.style.display = 'none'; return; }
+  const count = Object.values(allBookings).filter(b => b.status === 'pending').length;
+  if (count === 0) { el.style.display = 'none'; return; }
+  el.textContent = `⏳ ${count} request${count === 1 ? '' : 's'} waiting on your approval — sorted to the top of the table below`;
+  el.style.display = 'block';
+}
+
+// ── EMAIL NOTIFICATIONS (EmailJS — no backend needed) ─────────
+// Sends one email per new booking to whoever is set in the EmailJS
+// template's "To Email" field (currently testing with just Jiffin's
+// address — swap it to all 5 approvers, comma-separated, once confirmed).
+const EMAILJS_PUBLIC_KEY = '8eWQKOFZ8DNKKorpq';
+const EMAILJS_SERVICE_ID = 'service_aoqwx9v';
+const EMAILJS_TEMPLATE_ID = 'template_cylyn4j';
+
+let emailjsReady = false;
+if (typeof emailjs !== 'undefined' && EMAILJS_PUBLIC_KEY && !EMAILJS_PUBLIC_KEY.startsWith('PASTE_')) {
+  try { emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY }); emailjsReady = true; }
+  catch (e) { console.warn('EmailJS init failed', e); }
+}
+
+function notifyApproversOfNewBooking(booking) {
+  if (!emailjsReady || !EMAILJS_TEMPLATE_ID || EMAILJS_TEMPLATE_ID.startsWith('PASTE_')) {
+    console.warn('EmailJS not fully configured yet — skipping approver email for booking', booking.id);
+    return;
+  }
+  const durationHrs = (((booking.endMins || 0) - (booking.startMins || 0)) / 60).toFixed(2);
+  const params = {
+    booking_id: booking.id,
+    bunker: booking.bunker,
+    date: fmtDate(booking.date),
+    start_time: fmt24(booking.start),
+    end_time: fmt24(booking.end),
+    duration: durationHrs + ' hrs',
+    requester_name: booking.name,
+    requester_org: booking.org,
+    cost_centre: booking.costCentre || '\u2014',
+    purpose: booking.purpose,
+    contact: booking.contact || '\u2014',
+  };
+  emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, params)
+    .then(() => console.log('Approver notification sent for', booking.id))
+    .catch(e => console.error('EmailJS send failed for', booking.id, e));
+}
+
 const BUNKERS = ['H4','H5','SKY-1','SKY-2','B1'];
 const BUNKER_COLORS = ['r1','r2','r3','r4','r5'];
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -1414,12 +1481,23 @@ function initFirebase(cfg) {
   }
 }
 
+// A booking "holds" its time slot while pending OR confirmed — only
+// cancelled/rejected bookings free the slot back up.
+function blocksSlot(status) { return status !== 'cancelled' && status !== 'rejected'; }
+
 // ── GET BOOKINGS FOR A BUNKER ON A DATE ──────────────────────
 function getBookingsForDay(bunker, date) {
   return Object.entries(allBookings)
-    .filter(([id, b]) => b.bunker === bunker && b.date === date && b.status !== 'cancelled')
+    .filter(([id, b]) => b.bunker === bunker && b.date === date && blocksSlot(b.status))
     .map(([id, b]) => ({ id, ...b }))
     .sort((a, b) => (a.startMins||0) - (b.startMins||0));
+}
+
+function getBookingsForDate(dateStr, bunkerFilter) {
+  return Object.entries(allBookings)
+    .filter(([id, b]) => b.date === dateStr && blocksSlot(b.status) && (bunkerFilter === 'ALL' || b.bunker === bunkerFilter))
+    .map(([id, b]) => ({ id, ...b }))
+    .sort((a, b) => (a.startMins || 0) - (b.startMins || 0));
 }
 
 // ── BOOKING CALENDAR (Outlook-style month view) ────────────────
@@ -1427,13 +1505,6 @@ let calMonth = new Date().getMonth();
 let calYear = new Date().getFullYear();
 let calBunkerFilter = 'ALL';
 let calSelectedDate = null;
-
-function getBookingsForDate(dateStr, bunkerFilter) {
-  return Object.entries(allBookings)
-    .filter(([id, b]) => b.date === dateStr && b.status !== 'cancelled' && (bunkerFilter === 'ALL' || b.bunker === bunkerFilter))
-    .map(([id, b]) => ({ id, ...b }))
-    .sort((a, b) => (a.startMins || 0) - (b.startMins || 0));
-}
 
 function renderBookingCalendar() {
   const grid = document.getElementById('cal-grid');
@@ -1471,7 +1542,7 @@ function renderBookingCalendar() {
     div.onclick = () => selectCalDate(c.dateStr);
 
     let eventsHtml = bookings.slice(0, 3).map(b =>
-      `<div class="cal-event" style="border-left-color:${BUNKER_CHART_COLORS[b.bunker] || 'var(--accent)'}">${b.bunker} ${fmt24(b.start)} · ${b.name}</div>`
+      `<div class="cal-event" style="border-left-color:${BUNKER_CHART_COLORS[b.bunker] || 'var(--accent)'}">${b.status==='pending'?'⏳ ':''}${b.bunker} ${fmt24(b.start)} · ${b.name}</div>`
     ).join('');
     if (bookings.length > 3) eventsHtml += `<div class="cal-event-more">+${bookings.length - 3} more</div>`;
 
@@ -1556,7 +1627,7 @@ function renderBookingGrid() {
         cells += `<td class="${statusClass} ${isToday ? 'grid-col-today' : ''}"><div class="grid-cell-empty"></div></td>`;
       } else {
         const inner = bookings.map(b =>
-          `<div class="grid-booking-row" style="border-left-color:${BUNKER_CHART_COLORS[bunker] || 'var(--accent)'}" title="${b.name} · ${b.org || ''} · ${b.purpose || ''}"><span class="grid-booking-time">${fmt24(b.start)}–${fmt24(b.end)}</span><span class="grid-booking-name">${b.name}</span></div>`
+          `<div class="grid-booking-row" style="border-left-color:${BUNKER_CHART_COLORS[bunker] || 'var(--accent)'}" title="${b.name} · ${b.org || ''} · ${b.purpose || ''}${b.status==='pending'?' · Pending approval':''}"><span class="grid-booking-time">${b.status==='pending'?'⏳ ':''}${fmt24(b.start)}–${fmt24(b.end)}</span><span class="grid-booking-name">${b.name}</span></div>`
         ).join('');
         cells += `<td class="${statusClass} ${isToday ? 'grid-col-today' : ''}">${inner}</td>`;
       }
@@ -1596,7 +1667,7 @@ function renderCalDayDetails(dateStr) {
       <span class="cal-detail-bunker">${b.bunker}</span>
       <span>${fmt24(b.start)} – ${fmt24(b.end)}</span>
       <span>${b.name} · ${b.org}</span>
-      <span class="cal-detail-purpose">${b.purpose || ''}</span>
+      <span class="cal-detail-purpose">${b.purpose || ''}${b.status==='pending'?' <span style="color:var(--amber);font-weight:600">· Pending</span>':''}</span>
       <span class="bid">${b.id}</span>
     </div>
   `).join('');
@@ -2176,6 +2247,7 @@ window.setBookingToday = function() {
 }
 
 window.refreshBookingView = function() {
+  renderPendingApprovalBanner();
   const date = document.getElementById('booking-view-date').value;
   if (!date) return;
   const bunkers = activeBookingBunker === 'ALL' ? BUNKERS : [activeBookingBunker];
@@ -2189,23 +2261,31 @@ window.refreshBookingView = function() {
     let html = '';
     BUNKERS.forEach(r => {
       const bookings = getBookingsForDay(r, date);
-      const booked = bookings.map(b => [b.startMins, b.endMins]);
+      const booked = bookings.map(b => [b.startMins, b.endMins, b.status]);
       const free = computeFreeSlots(booked);
       html += `<div style="width:100%;margin-bottom:10px"><div style="font-size:0.78rem;font-weight:600;color:var(--muted);margin-bottom:6px">${r}</div><div style="display:flex;flex-wrap:wrap;gap:6px">`;
       if (free.length === 0) html += `<span class="slot-chip slot-booked">Fully booked</span>`;
       else free.forEach(([s,e]) => { html += `<span class="slot-chip slot-free">${minsToHHMM(s)} – ${minsToHHMM(e)}</span>`; });
-      booked.forEach(([s,e]) => { html += `<span class="slot-chip slot-booked">🔒 ${minsToHHMM(s)} – ${minsToHHMM(e)}</span>`; });
+      booked.forEach(([s,e,status]) => {
+        html += status === 'pending'
+          ? `<span class="slot-chip slot-pending">⏳ ${minsToHHMM(s)} – ${minsToHHMM(e)}</span>`
+          : `<span class="slot-chip slot-booked">🔒 ${minsToHHMM(s)} – ${minsToHHMM(e)}</span>`;
+      });
       html += '</div></div>';
     });
     slotsGrid.innerHTML = html || '<span class="slot-empty">No data</span>';
   } else {
     const bookings = getBookingsForDay(activeBookingBunker, date);
-    const booked = bookings.map(b => [b.startMins, b.endMins]);
+    const booked = bookings.map(b => [b.startMins, b.endMins, b.status]);
     const free = computeFreeSlots(booked);
     let html = '';
     if (free.length === 0) html += `<span class="slot-chip slot-booked">Fully booked for the day</span>`;
     else free.forEach(([s,e]) => { html += `<span class="slot-chip slot-free">${minsToHHMM(s)} – ${minsToHHMM(e)}</span>`; });
-    booked.forEach(([s,e]) => { html += `<span class="slot-chip slot-booked">🔒 ${minsToHHMM(s)} – ${minsToHHMM(e)}</span>`; });
+    booked.forEach(([s,e,status]) => {
+      html += status === 'pending'
+        ? `<span class="slot-chip slot-pending">⏳ ${minsToHHMM(s)} – ${minsToHHMM(e)}</span>`
+        : `<span class="slot-chip slot-booked">🔒 ${minsToHHMM(s)} – ${minsToHHMM(e)}</span>`;
+    });
     slotsGrid.innerHTML = html || '<span class="slot-empty">Fully free — no bookings yet</span>';
   }
 
@@ -2213,16 +2293,20 @@ window.refreshBookingView = function() {
   const allForDay = [];
   bunkers.forEach(r => { getBookingsForDay(r, date).forEach(b => allForDay.push(b)); });
   Object.entries(allBookings)
-    .filter(([id,b]) => bunkers.includes(b.bunker) && b.date === date && b.status === 'cancelled')
+    .filter(([id,b]) => bunkers.includes(b.bunker) && b.date === date && (b.status === 'cancelled' || b.status === 'rejected'))
     .forEach(([id,b]) => allForDay.push({id,...b}));
-  allForDay.sort((a,b) => (a.startMins||0) - (b.startMins||0));
+  allForDay.sort((a,b) => {
+    const pa = a.status === 'pending' ? 0 : 1, pb = b.status === 'pending' ? 0 : 1;
+    if (pa !== pb) return pa - pb;
+    return (a.startMins||0) - (b.startMins||0);
+  });
 
   const tbody = document.getElementById('bookings-tbody');
   if (allForDay.length === 0) {
     tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:20px">No bookings for this day</td></tr>`;
     return;
   }
-  tbody.innerHTML = allForDay.map(b => `<tr>
+  tbody.innerHTML = allForDay.map(b => `<tr${b.status==='pending'?' style="background:rgba(251,191,36,0.06)"':''}>
     <td><span class="bid">${b.id}</span></td>
     <td>${(b.bunker||'')}</td>
     <td style="white-space:nowrap">${fmtDate(b.date)}</td>
@@ -2230,13 +2314,24 @@ window.refreshBookingView = function() {
     <td>${b.startMins!=null&&b.endMins!=null?fmt(b.endMins-b.startMins):'—'}</td>
     <td>${b.name||'—'}</td><td>${b.costCentre||'—'}</td><td>${b.org||'—'}</td>
     <td style="max-width:140px;font-size:0.78rem">${(b.purpose||'—').slice(0,60)}</td>
-    <td>${b.status==='cancelled'?'<span style="color:var(--red);font-size:0.75rem;font-weight:600">Cancelled</span>':'<span class="confirmed-badge">Confirmed</span>'}</td>
+    <td>${bookingStatusBadge(b.status)}</td>
     <td style="white-space:nowrap;display:flex;gap:6px">
+      ${b.status==='pending' && isApprover() ? `
+        <button class="cancel-badge" style="background:var(--green-light);color:var(--green);border-color:rgba(52,211,153,0.35)" onclick="approveBooking('${b.id}')">Approve</button>
+        <button class="cancel-badge" style="background:rgba(248,113,113,0.12);color:var(--red);border-color:rgba(248,113,113,0.35)" onclick="rejectBooking('${b.id}')">Reject</button>
+      ` : ''}
       <button class="cancel-badge" style="background:var(--accent-light);color:var(--accent);border-color:rgba(59,130,246,0.35)" onclick="openEditBookingForm('${b.id}')">Edit</button>
-      ${b.status!=='cancelled'?`<button class="cancel-badge" onclick="openCancelModal('${b.id}')">Cancel</button>`:''}
+      ${b.status!=='cancelled'&&b.status!=='rejected'?`<button class="cancel-badge" onclick="openCancelModal('${b.id}')">Cancel</button>`:''}
       <button class="cancel-badge" style="background:rgba(248,113,113,0.12);color:var(--red);border-color:rgba(248,113,113,0.35)" onclick="openDeleteModal('${b.id}')">Delete</button>
     </td>
   </tr>`).join('');
+}
+
+function bookingStatusBadge(status) {
+  if (status === 'cancelled') return '<span style="color:var(--red);font-size:0.75rem;font-weight:600">Cancelled</span>';
+  if (status === 'rejected') return '<span style="color:var(--red);font-size:0.75rem;font-weight:600">Rejected</span>';
+  if (status === 'pending') return '<span style="background:var(--amber-light);color:var(--amber);font-size:0.7rem;font-weight:600;padding:2px 8px;border-radius:4px;display:inline-block">Pending Approval</span>';
+  return '<span class="confirmed-badge">Confirmed</span>';
 }
 
 // ── BOOKING FORM ──────────────────────────────────────────────
@@ -2329,7 +2424,7 @@ window.checkAndBook = async function() {
   const prior = isEdit ? allBookings[id] : null;
   const booking = {
     id, bunker, date, start, end, startMins: sm, endMins: em, name, org, costCentre, purpose, contact,
-    status: prior ? prior.status : 'confirmed',
+    status: prior ? prior.status : 'pending',
     bookedAt: prior ? prior.bookedAt : new Date().toISOString(),
     ...(isEdit ? { editedAt: new Date().toISOString() } : {})
   };
@@ -2343,13 +2438,14 @@ window.checkAndBook = async function() {
   if (currentDate) renderCards();
   renderMonthly();
   renderBookingCalendar();
+  if (!isEdit) notifyApproversOfNewBooking(booking);
 
   successEl.textContent = isEdit
     ? `✅ Booking updated! ID: ${id}. ${bunker} now reserved on ${fmtDate(date)} from ${fmt24(start)} to ${fmt24(end)}.`
-    : `✅ Booking confirmed! ID: ${id}. ${bunker} reserved on ${fmtDate(date)} from ${fmt24(start)} to ${fmt24(end)}.`;
+    : `⏳ Request submitted! ID: ${id}. ${bunker} is held for ${fmtDate(date)} from ${fmt24(start)} to ${fmt24(end)}, pending approval.`;
   successEl.classList.add('show');
   document.getElementById('booking-view-date').value = date;
-  toast(isEdit ? `✏️ Booking ${id} updated!` : `✅ Booking ${id} confirmed!`);
+  toast(isEdit ? `✏️ Booking ${id} updated!` : `⏳ Request ${id} submitted — awaiting approval`);
   setTimeout(() => closeBookingForm(), 3500);
 }
 
@@ -2375,6 +2471,48 @@ window.confirmCancel = async function() {
   renderBookingCalendar();
   closeCancelModal();
   toast(`Booking ${cancelBookingId} cancelled`);
+}
+
+// ── APPROVE / REJECT (approvers only) ─────────────────────────
+// isApprover() is a UI convenience, not a security boundary — see the note
+// by APPROVER_EMAILS. A signed-in Astral account could still call Firebase
+// directly; only Security Rules checking auth.token.email truly enforce this.
+window.approveBooking = async function(id) {
+  if (!isApprover()) { toast('🚫 Only Alex, Han Ying, Jiffin, Barry, or Tom can approve requests'); return; }
+  const b = allBookings[id];
+  if (!b) return;
+  b.status = 'confirmed';
+  b.approvedBy = currentUserEmail;
+  b.approvedAt = new Date().toISOString();
+  persistLocalBookings();
+  if (db) {
+    try { await set(ref(db, `bookings/${id}`), b); }
+    catch (e) { console.error('Firebase sync failed, kept locally', e); toast('⚠️ Approved on this device — sync to server failed'); }
+  }
+  refreshBookingView();
+  if (currentDate) renderCards();
+  renderMonthly();
+  renderBookingCalendar();
+  toast(`✅ Booking ${id} approved`);
+}
+
+window.rejectBooking = async function(id) {
+  if (!isApprover()) { toast('🚫 Only Alex, Han Ying, Jiffin, Barry, or Tom can reject requests'); return; }
+  const b = allBookings[id];
+  if (!b) return;
+  b.status = 'rejected';
+  b.rejectedBy = currentUserEmail;
+  b.rejectedAt = new Date().toISOString();
+  persistLocalBookings();
+  if (db) {
+    try { await set(ref(db, `bookings/${id}`), b); }
+    catch (e) { console.error('Firebase sync failed, kept locally', e); toast('⚠️ Rejected on this device — sync to server failed'); }
+  }
+  refreshBookingView();
+  if (currentDate) renderCards();
+  renderMonthly();
+  renderBookingCalendar();
+  toast(`Booking ${id} rejected — slot is available again`);
 }
 
 // ── DELETE BOOKING ────────────────────────────────────────────
@@ -2537,7 +2675,7 @@ window.downloadBookingsPDF = function() {
     rows.push([id, `${b.bunker}`, fmtDate(b.date), b.start, b.end, dur, b.name, (b.costCentre||'').slice(0,20), (b.org||'').slice(0,25), (b.purpose||'').slice(0,30), b.status]);
   });
   rows.sort((a,b) => a[2].localeCompare(b[2]));
-  doc.autoTable({ head:[['ID','Bunker','Date','From','To','Duration','Name','Cost Centre','Organization','Reason','Status']], body:rows, startY:30, styles:{fontSize:7,cellPadding:2}, headStyles:{fillColor:[37,99,235],textColor:255,fontStyle:'bold'}, alternateRowStyles:{fillColor:[245,246,250]}, didParseCell:(data)=>{ if(data.section==='body'&&data.column.index===10&&data.cell.raw==='cancelled')data.cell.styles.textColor=[220,38,38]; } });
+  doc.autoTable({ head:[['ID','Bunker','Date','From','To','Duration','Name','Cost Centre','Organization','Reason','Status']], body:rows, startY:30, styles:{fontSize:7,cellPadding:2}, headStyles:{fillColor:[37,99,235],textColor:255,fontStyle:'bold'}, alternateRowStyles:{fillColor:[245,246,250]}, didParseCell:(data)=>{ if(data.section==='body'&&data.column.index===10&&(data.cell.raw==='cancelled'||data.cell.raw==='rejected'))data.cell.styles.textColor=[220,38,38]; if(data.section==='body'&&data.column.index===10&&data.cell.raw==='pending')data.cell.styles.textColor=[217,119,6]; } });
   doc.addPage();
   doc.setFontSize(13); doc.setFont(undefined,'bold');
   doc.text(`Booking Summary — ${mName} ${year}`, 14, 18);
@@ -3103,6 +3241,7 @@ function showApp(user) {
   document.getElementById('login-gate').style.display = 'none';
   document.getElementById('app-shell').style.display = 'block';
   document.getElementById('user-email-label').textContent = user.email;
+  currentUserEmail = (user.email || '').toLowerCase();
   // Now that we're authenticated, connect to the Realtime Database
   // and boot the dashboard (this was previously called by init()
   // directly on page load — now it's gated behind sign-in).
