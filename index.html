@@ -946,7 +946,8 @@ tr:hover td { background: var(--bg); }
   </div>
 
   <!-- ALL PENDING APPROVALS (every date, not just the one selected above) -->
-  <div class="bookings-card">
+  <!-- Approver-only: hidden entirely for anyone else via renderApproverOnlySections() -->
+  <div class="bookings-card" id="pending-section-card" style="display:none">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
       <h4 style="margin-bottom:0">⏳ All Pending Approvals <span style="color:var(--amber)">(<span id="pending-section-count">0</span>)</span></h4>
       <button class="btn btn-sm" onclick="toggleAllPendingSection()">Show / Hide</button>
@@ -965,7 +966,8 @@ tr:hover td { background: var(--bg); }
   </div>
 
   <!-- CANCELLED / REJECTED BOOKINGS (every date) -->
-  <div class="bookings-card">
+  <!-- Approver-only: hidden entirely for anyone else via renderApproverOnlySections() -->
+  <div class="bookings-card" id="cancelled-section-card" style="display:none">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
       <h4 style="margin-bottom:0">🚫 Cancelled &amp; Rejected Bookings <span style="color:var(--muted)">(<span id="cancelled-section-count">0</span>)</span></h4>
       <button class="btn btn-sm" onclick="toggleCancelledSection()">Show / Hide</button>
@@ -1317,6 +1319,17 @@ const APPROVER_EMAILS = [
 ];
 let currentUserEmail = '';
 function isApprover() { return APPROVER_EMAILS.includes((currentUserEmail || '').toLowerCase()); }
+
+// These two sections list EVERY pending/cancelled booking across every date
+// (not just the day someone happens to be viewing) — only the 5 approvers
+// should even see that this exists, not just the Approve/Reject buttons.
+function renderApproverOnlySections() {
+  const show = isApprover() ? 'block' : 'none';
+  const pendingCard = document.getElementById('pending-section-card');
+  const cancelledCard = document.getElementById('cancelled-section-card');
+  if (pendingCard) pendingCard.style.display = show;
+  if (cancelledCard) cancelledCard.style.display = show;
+}
 
 function renderPendingApprovalBanner() {
   const el = document.getElementById('pending-approval-banner');
@@ -2309,6 +2322,7 @@ window.setBookingToday = function() {
 
 window.refreshBookingView = function() {
   renderPendingApprovalBanner();
+  renderApproverOnlySections();
   renderAllPendingSection();
   renderCancelledSection();
   const date = document.getElementById('booking-view-date').value;
@@ -3370,6 +3384,7 @@ function showApp(user) {
   document.getElementById('app-shell').style.display = 'block';
   document.getElementById('user-email-label').textContent = user.email;
   currentUserEmail = (user.email || '').toLowerCase();
+  renderApproverOnlySections();
   // Now that we're authenticated, connect to the Realtime Database
   // and boot the dashboard (this was previously called by init()
   // directly on page load — now it's gated behind sign-in).
