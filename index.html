@@ -1341,7 +1341,7 @@ function notifyApproversOfNewBooking(booking) {
 // Create a second EmailJS template with "To Email" set to the DYNAMIC
 // variable {{to_email}} (not a fixed address) — this one's recipient
 // changes per booking. Paste its Template ID below once created.
-const EMAILJS_TEMPLATE_DECISION = 'template_nk4b66i';
+const EMAILJS_TEMPLATE_DECISION = 'PASTE_DECISION_TEMPLATE_ID_HERE'; // deactivated — template deleted to make room for the Removed template
 
 function notifyRequesterOfDecision(booking, decision) {
   if (!booking.submittedByEmail) {
@@ -1376,7 +1376,7 @@ function notifyRequesterOfDecision(booking, decision) {
 // Create a third EmailJS template, "To Email" set to a FIXED comma-separated
 // list (same 5 addresses as the pending-approval template, or a different
 // group if you'd rather). Paste its Template ID below once created.
-const EMAILJS_TEMPLATE_REMOVED = 'PASTE_REMOVED_TEMPLATE_ID_HERE';
+const EMAILJS_TEMPLATE_REMOVED = 'template_h169bdt';
 
 function notifyAdminsOfRemoval(booking, action) {
   if (!emailjsReady || !EMAILJS_TEMPLATE_REMOVED || EMAILJS_TEMPLATE_REMOVED.startsWith('PASTE_')) {
