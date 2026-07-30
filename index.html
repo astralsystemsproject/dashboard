@@ -1425,18 +1425,46 @@ function notifyRequesterOfDecision(booking, decision, dayCount = 1) {
     .catch(e => console.error('EmailJS send failed for', booking.id, e));
 }
 
-// ── TEMPLATE 3: removal notice (cancelled/deleted) sent to approvers ────
-// Create a third EmailJS template, "To Email" set to a FIXED comma-separated
-// list (same 5 addresses as the pending-approval template, or a different
-// group if you'd rather). Paste its Template ID below once created.
+// ── TEMPLATE 3: general-purpose approver notice ─────────────────
+// Reshaped to serve TWO purposes with one template (free plan is capped at
+// 2 templates), by making "To Email" DYNAMIC ({{to_email}}) instead of
+// fixed, and passing generic notice_title/notice_message/calendar_link
+// params that read naturally either way:
+//   1) Removal notice — cancelled/deleted bookings, sent to all approvers.
+//   2) Approval calendar-link — sent only to Alex & Han Ying, with a
+//      one-click "add to Outlook" link (see buildOutlookCalendarLink below).
+// In EmailJS: set this template's "To Email" field to the literal text
+// {{to_email}} — everything else about the template can stay as already set.
 const EMAILJS_TEMPLATE_REMOVED = 'template_h169bdt';
+
+// Alex and Han Ying specifically get the "add to your calendar" link once a
+// booking is approved — kept separate from APPROVER_EMAILS since not every
+// approver necessarily wants every booking on their own personal calendar.
+const CALENDAR_NOTICE_EMAILS = ['jiffin@astralsystems.com']; // TESTING — swap to ['alex@astralsystems.com', 'han-ying@astralsystems.com'] once confirmed working
+
+// Builds a one-click "add to Outlook Web calendar" link. This is NOT a true
+// Accept/Decline meeting invite — a real one needs a .ics file attachment,
+// which EmailJS only supports on paid plans. This is the free alternative:
+// clicking it opens a pre-filled New Event screen in Outlook Web: one more
+// click (Save) adds it to that person's calendar.
+function buildOutlookCalendarLink(booking) {
+  const subject = encodeURIComponent(`${booking.bunker} \u2014 ${booking.purpose || 'Bunker Booking'}`);
+  const body = encodeURIComponent(`Booking ID: ${booking.id}\nBooked by: ${booking.name} (${booking.org})\nApproved via the Astral Bunker Booking System.`);
+  const location = encodeURIComponent(booking.bunker);
+  const startdt = encodeURIComponent(`${booking.date}T${booking.start}:00`);
+  const enddt = encodeURIComponent(`${booking.date}T${booking.end}:00`);
+  return `https://outlook.office.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent&startdt=${startdt}&enddt=${enddt}&subject=${subject}&body=${body}&location=${location}&allday=false`;
+}
 
 function notifyAdminsOfRemoval(booking, action) {
   if (!emailjsReady || !EMAILJS_TEMPLATE_REMOVED || EMAILJS_TEMPLATE_REMOVED.startsWith('PASTE_')) {
-    console.warn('EmailJS removal template not configured yet — skipping email for booking', booking.id);
+    console.warn('EmailJS notice template not configured yet — skipping email for booking', booking.id);
     return;
   }
   const params = {
+    to_email: APPROVER_EMAILS.join(', '),
+    notice_title: action === 'deleted' ? 'Booking Deleted' : 'Booking Cancelled',
+    notice_message: `A booking has been ${action} on the dashboard by ${currentUserEmail || 'unknown'}.`,
     booking_id: booking.id,
     bunker: booking.bunker,
     date: fmtDate(booking.date),
@@ -1444,12 +1472,42 @@ function notifyAdminsOfRemoval(booking, action) {
     end_time: fmt24(booking.end),
     requester_name: booking.name,
     requester_org: booking.org,
-    action: action === 'deleted' ? 'Deleted' : 'Cancelled',
-    removed_by: currentUserEmail || 'unknown',
+    calendar_link: '',
   };
   emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_REMOVED, params)
     .then(() => console.log('Removal notification sent for', booking.id))
     .catch(e => console.error('EmailJS send failed for', booking.id, e));
+}
+
+// Sent to Alex & Han Ying whenever booking(s) get approved. Takes an array
+// so a whole multi-day block only sends ONE email (with one calendar link
+// per day) rather than a separate email per day.
+function notifyCalendarInvite(approvedGroup) {
+  if (!emailjsReady || !EMAILJS_TEMPLATE_REMOVED || EMAILJS_TEMPLATE_REMOVED.startsWith('PASTE_')) {
+    console.warn('EmailJS notice template not configured yet — skipping calendar-link email');
+    return;
+  }
+  const b = approvedGroup[0];
+  const last = approvedGroup[approvedGroup.length - 1];
+  const linkLines = approvedGroup
+    .map(item => `${fmtDate(item.date)} (${fmt24(item.start)}\u2013${fmt24(item.end)}): ${buildOutlookCalendarLink(item)}`)
+    .join('\n');
+  const params = {
+    to_email: CALENDAR_NOTICE_EMAILS.join(', '),
+    notice_title: approvedGroup.length > 1 ? `Booking Approved \u2014 ${approvedGroup.length} Days` : 'Booking Approved',
+    notice_message: 'This booking has been approved and confirmed. Click a link below to add it to your Outlook calendar (one click, then Save):',
+    booking_id: b.id + (approvedGroup.length > 1 ? ` (+${approvedGroup.length - 1} more linked day${approvedGroup.length > 2 ? 's' : ''})` : ''),
+    bunker: b.bunker,
+    date: approvedGroup.length > 1 ? `${fmtDate(b.date)} \u2013 ${fmtDate(last.date)}` : fmtDate(b.date),
+    start_time: fmt24(b.start),
+    end_time: fmt24(b.end),
+    requester_name: b.name,
+    requester_org: b.org,
+    calendar_link: linkLines,
+  };
+  emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_REMOVED, params)
+    .then(() => console.log('Calendar-link notification sent'))
+    .catch(e => console.error('EmailJS send failed', e));
 }
 
 const BUNKERS = ['H4','H5','SKY-1','SKY-2','B1'];
@@ -2716,6 +2774,7 @@ window.approveBooking = async function(id) {
   renderMonthly();
   renderBookingCalendar();
   notifyRequesterOfDecision(b, 'confirmed', group.length);
+  notifyCalendarInvite(group);
   toast(group.length > 1 ? `✅ ${group.length}-day block approved` : `✅ Booking ${id} approved`);
 }
 
