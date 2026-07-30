@@ -191,9 +191,6 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; }
 .cal-day-events { display: flex; flex-direction: column; gap: 3px; overflow: hidden; }
 .cal-event { font-size: 0.68rem; padding: 2px 5px; border-radius: 4px; background: var(--surface); color: var(--text); border: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid var(--accent); }
 .cal-event-more { font-size: 0.66rem; color: var(--muted); font-weight: 600; padding-left: 5px; }
-.cal-day-details { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px; }
-.cal-day-details-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.cal-day-details-header h4 { font-size: 0.88rem; font-weight: 600; }
 .cal-detail-row { display: grid; grid-template-columns: 50px 130px 1fr 1fr auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px; background: var(--bg); font-size: 0.8rem; margin-bottom: 6px; }
 .cal-detail-bunker { font-weight: 700; color: var(--accent); }
 .cal-detail-purpose { color: var(--muted); }
@@ -948,19 +945,6 @@ tr:hover td { background: var(--bg); }
     <div class="slots-grid" id="slots-grid"><span class="slot-empty">Select a date to see available slots</span></div>
   </div>
 
-  <div class="bookings-card">
-    <h4>📋 Bookings — <span id="bookings-day-label">—</span></h4>
-    <div style="overflow-x:auto">
-      <table id="bookings-table">
-        <thead><tr>
-          <th>Booking ID</th><th>Bunker</th><th>Date</th><th>From</th><th>To</th><th>Duration</th>
-          <th>Name</th><th>Cost Centre</th><th>Organization</th><th>Reason of Running</th><th>Status</th><th>Action</th>
-        </tr></thead>
-        <tbody id="bookings-tbody"><tr><td colspan="12" style="text-align:center;color:var(--muted);padding:20px">Select a date to view bookings</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-
   <!-- ALL PENDING APPROVALS (every date, not just the one selected above) -->
   <div class="bookings-card">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
@@ -1035,14 +1019,6 @@ tr:hover td { background: var(--bg); }
       <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
     </div>
     <div class="cal-grid" id="cal-grid"></div>
-
-    <div class="cal-day-details" id="cal-day-details" style="display:none">
-      <div class="cal-day-details-header">
-        <h4 id="cal-selected-date-label"></h4>
-        <button class="btn btn-sm" onclick="closeCalDayDetails()">✕ Close</button>
-      </div>
-      <div id="cal-day-details-body"></div>
-    </div>
     </div>
 
     <div class="cal-view-panel" id="cal-grid-view">
@@ -1054,6 +1030,21 @@ tr:hover td { background: var(--bg); }
         <table class="grid-table">
           <thead><tr id="grid-table-head"></tr></thead>
           <tbody id="grid-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Bookings for whichever date is currently selected/clicked above —
+         shared by both Month and Grid views, so it doesn't need its own copy. -->
+    <div class="bookings-card" style="margin-top:1.2rem;box-shadow:none;border-style:dashed">
+      <h4>📋 Bookings — <span id="bookings-day-label">—</span></h4>
+      <div style="overflow-x:auto">
+        <table id="bookings-table">
+          <thead><tr>
+            <th>Booking ID</th><th>Bunker</th><th>Date</th><th>From</th><th>To</th><th>Duration</th>
+            <th>Name</th><th>Cost Centre</th><th>Organization</th><th>Reason of Running</th><th>Status</th><th>Action</th>
+          </tr></thead>
+          <tbody id="bookings-tbody"><tr><td colspan="12" style="text-align:center;color:var(--muted);padding:20px">Select a date to view bookings</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -1650,9 +1641,6 @@ function renderBookingCalendar() {
     grid.appendChild(div);
   });
 
-  // Keep the details panel in sync if a date is currently selected
-  if (calSelectedDate) renderCalDayDetails(calSelectedDate);
-
   // Keep the grid (spreadsheet) view's data current too, even while hidden,
   // so switching to it never shows a stale month/filter.
   renderBookingGrid();
@@ -1744,38 +1732,11 @@ window.calToday = function() { const t = new Date(); calMonth = t.getMonth(); ca
 
 function selectCalDate(dateStr) {
   calSelectedDate = dateStr;
-  // Keep the top "Available Slots" / "Bookings — All Bunkers" section in sync
-  // with whatever date is clicked on the calendar, so there's one consistent
-  // place showing that day's bookings instead of two separate views.
+  // Keep the "Available Slots" / "Bookings" section (now living inside this
+  // same calendar card) in sync with whatever date is clicked, so there's
+  // one place showing that day's bookings instead of two separate views.
   document.getElementById('booking-view-date').value = dateStr;
   refreshBookingView();
-  renderBookingCalendar();
-  renderCalDayDetails(dateStr);
-}
-
-function renderCalDayDetails(dateStr) {
-  const bookings = getBookingsForDate(dateStr, calBunkerFilter);
-  document.getElementById('cal-day-details').style.display = 'block';
-  document.getElementById('cal-selected-date-label').textContent = fmtDate(dateStr);
-  const body = document.getElementById('cal-day-details-body');
-  if (!bookings.length) {
-    body.innerHTML = `<p style="color:var(--muted);font-size:0.85rem">No bookings for this date${calBunkerFilter !== 'ALL' ? ' (' + calBunkerFilter + ')' : ''}.</p>`;
-    return;
-  }
-  body.innerHTML = bookings.map(b => `
-    <div class="cal-detail-row">
-      <span class="cal-detail-bunker">${b.bunker}</span>
-      <span>${fmt24(b.start)} – ${fmt24(b.end)}</span>
-      <span>${b.name} · ${b.org}</span>
-      <span class="cal-detail-purpose">${b.purpose || ''}${b.status==='pending'?' <span style="color:var(--amber);font-weight:600">· Pending</span>':''}</span>
-      <span class="bid">${b.id}</span>
-    </div>
-  `).join('');
-}
-
-window.closeCalDayDetails = function() {
-  calSelectedDate = null;
-  document.getElementById('cal-day-details').style.display = 'none';
   renderBookingCalendar();
 }
 
