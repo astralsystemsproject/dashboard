@@ -808,6 +808,7 @@ tr:hover td { background: var(--bg); }
   <button class="tab-btn active" onclick="switchTab('booking', this)">📅 Bunker Booking</button>
   <button class="tab-btn" onclick="switchTab('dashboard', this)">📊 Daily Log</button>
   <button class="tab-btn" onclick="switchTab('analysis', this)">📈 Analysis</button>
+  <button class="tab-btn" onclick="switchTab('allbookings', this)">📋 All Bookings</button>
 </div>
 
 <!-- CANCEL BOOKING MODAL -->
@@ -832,6 +833,20 @@ tr:hover td { background: var(--bg); }
     <div class="modal-actions">
       <button class="btn" onclick="closeDeleteModal()">Keep Booking</button>
       <button class="btn btn-danger" onclick="confirmDelete()">Yes, Delete It</button>
+    </div>
+  </div>
+</div>
+
+<!-- ONE-TIME CLEANUP: retired SKY-1 / SKY-2 / B1 data -->
+<!-- This is a temporary tool — ask Claude to remove it once you've run it. -->
+<div class="modal-overlay" id="retired-cleanup-modal">
+  <div class="modal modal-lg">
+    <h2>🧹 Remove SKY-1 / SKY-2 / B1 Data</h2>
+    <p>Found <strong id="retired-cleanup-count">0</strong> item(s) still filed under SKY-1, SKY-2, or B1 \u2014 these bunkers are on hold until Skyline. This permanently deletes them, including from Monthly Reports and exports. This cannot be undone.</p>
+    <div id="retired-cleanup-list" style="background:var(--bg);border-radius:8px;padding:10px;margin-bottom:16px;max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeRetiredCleanupModal()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmRetiredCleanup()">Yes, Delete Them</button>
     </div>
   </div>
 </div>
@@ -872,8 +887,6 @@ tr:hover td { background: var(--bg); }
         <label>Select Bunker *</label>
         <select id="book-bunker">
           <option value="H4">H4</option><option value="H5">H5</option>
-          <option value="SKY-1">SKY-1</option><option value="SKY-2">SKY-2</option>
-          <option value="B1">B1</option>
         </select>
       </div>
       <div class="form-field">
@@ -906,7 +919,17 @@ tr:hover td { background: var(--bg); }
       </div>
       <div class="form-field full">
         <label>Organization / Department *</label>
-        <input type="text" id="book-org" placeholder="Customer or internal team, e.g. UOB, UKAEA, Astral (internal)" autocomplete="off">
+        <select id="book-org-select" onchange="toggleExternalOrgField()">
+          <option value="">Select...</option>
+          <option value="Science Team">Science Team</option>
+          <option value="Engineering Team">Engineering Team</option>
+          <option value="Projects & Operations">Projects &amp; Operations</option>
+          <option value="Other/External">Other / External</option>
+        </select>
+      </div>
+      <div class="form-field full" id="book-org-external-field" style="display:none">
+        <label>External Company Name *</label>
+        <input type="text" id="book-org-external" placeholder="e.g. UOB, UKAEA" autocomplete="off">
       </div>
       <div class="form-field full">
         <label>Project / Experiment Name *</label>
@@ -954,9 +977,6 @@ tr:hover td { background: var(--bg); }
     <button class="rtab active" onclick="selectBookingBunker('ALL',this)">All Bunkers</button>
     <button class="rtab" onclick="selectBookingBunker('H4',this)">H4</button>
     <button class="rtab" onclick="selectBookingBunker('H5',this)">H5</button>
-    <button class="rtab" onclick="selectBookingBunker('SKY-1',this)">SKY-1</button>
-    <button class="rtab" onclick="selectBookingBunker('SKY-2',this)">SKY-2</button>
-    <button class="rtab" onclick="selectBookingBunker('B1',this)">B1</button>
   </div>
 
   <div class="booking-date-row">
@@ -1021,8 +1041,6 @@ tr:hover td { background: var(--bg); }
         <select id="cal-bunker-filter" onchange="setCalBunkerFilter(this.value)">
           <option value="ALL">All Bunkers</option>
           <option value="H4">H4</option><option value="H5">H5</option>
-          <option value="SKY-1">SKY-1</option><option value="SKY-2">SKY-2</option>
-          <option value="B1">B1</option>
         </select>
         <button class="btn btn-sm" onclick="calPrevMonth()">‹</button>
         <span id="cal-month-label" style="font-weight:600;min-width:130px;text-align:center;display:inline-block"></span>
@@ -1088,14 +1106,21 @@ tr:hover td { background: var(--bg); }
       <select id="bdl-bunker">
         <option value="ALL">All Bunkers</option>
         <option value="H4">H4</option><option value="H5">H5</option>
-        <option value="SKY-1">SKY-1</option><option value="SKY-2">SKY-2</option>
-        <option value="B1">B1</option>
       </select>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn btn-success" onclick="downloadBookingsCSV()">⬇ Download CSV</button>
       <button class="btn btn-primary" onclick="downloadBookingsPDF()">⬇ Download PDF Report</button>
     </div>
+  </div>
+
+  <!-- TEMPORARY: one-time cleanup for retired SKY-1/SKY-2/B1 data. Remove this card once run. -->
+  <div class="booking-download-card" style="margin-top:1.2rem">
+    <h4>🧹 One-Time Cleanup — Retired Bunkers</h4>
+    <p style="font-size:0.82rem;color:var(--muted);margin-bottom:12px">
+      H4 and H5 are the only active bunkers for now. Run this once to remove any existing SKY-1, SKY-2, or B1 bookings and logs — ask Claude to remove this card afterward.
+    </p>
+    <button class="btn btn-danger" onclick="openRetiredCleanupModal()">Find SKY-1 / SKY-2 / B1 data</button>
   </div>
 
   <!-- FEEDBACK & SUGGESTIONS (approver-only) -->
@@ -1151,9 +1176,6 @@ tr:hover td { background: var(--bg); }
     <button class="rtab active" onclick="selectDashboardBunker('ALL',this)">All Bunkers</button>
     <button class="rtab" onclick="selectDashboardBunker('H4',this)">H4</button>
     <button class="rtab" onclick="selectDashboardBunker('H5',this)">H5</button>
-    <button class="rtab" onclick="selectDashboardBunker('SKY-1',this)">SKY-1</button>
-    <button class="rtab" onclick="selectDashboardBunker('SKY-2',this)">SKY-2</button>
-    <button class="rtab" onclick="selectDashboardBunker('B1',this)">B1</button>
   </div>
   <div class="bunker-grid" id="bunker-grid"></div>
   <div class="daily-notes-card">
@@ -1173,7 +1195,7 @@ tr:hover td { background: var(--bg); }
     </div>
     <div class="mtbl-outer" id="mtbl-outer">
       <div class="mtbl-scroll-hint" id="mtbl-scroll-hint">
-        <span>⇄</span> Scroll to see H5 · SKY-1 · SKY-2 · B1 &amp; Notes
+        <span>⇄</span> Scroll to see H5 &amp; Notes
       </div>
       <div id="monthly-table-wrap" class="mtbl-wrap"></div>
       <div class="mtbl-fade-right" id="mtbl-fade-right"></div>
@@ -1255,6 +1277,47 @@ tr:hover td { background: var(--bg); }
           <th>Bunker</th><th>Total Booked</th><th>Total Used</th><th>Total Downtime</th><th>Efficiency</th><th>Most Common Downtime Reason</th>
         </tr></thead>
         <tbody id="analysis-summary-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     TAB 4: ALL BOOKINGS (full log, every date, every status)
+════════════════════════════════════════════════════ -->
+<div id="tab-allbookings" class="tab-section">
+  <div class="booking-top">
+    <div>
+      <h2>All Bookings</h2>
+      <p>Every booking ever made \u2014 reason, cost centre, project, and status, all in one place.</p>
+    </div>
+  </div>
+
+  <div class="analysis-filters" style="margin-bottom:1.2rem">
+    <label>Bunker:</label>
+    <select id="allbk-bunker-filter" onchange="renderAllBookingsTable()">
+      <option value="ALL">All Bunkers</option>
+      <option value="H4">H4</option><option value="H5">H5</option>
+    </select>
+    <label>Status:</label>
+    <select id="allbk-status-filter" onchange="renderAllBookingsTable()">
+      <option value="ALL">All Statuses</option>
+      <option value="pending">Pending Approval</option>
+      <option value="confirmed">Confirmed</option>
+      <option value="rejected">Rejected</option>
+      <option value="cancelled">Cancelled</option>
+    </select>
+    <span id="allbk-count" style="font-size:0.82rem;color:var(--muted);margin-left:auto"></span>
+  </div>
+
+  <div class="bookings-card">
+    <div style="overflow-x:auto;max-height:640px;overflow-y:auto">
+      <table>
+        <thead><tr>
+          <th>Booking ID</th><th>Bunker</th><th>Date</th><th>From</th><th>To</th><th>Duration</th>
+          <th>Name</th><th>Project / Experiment</th><th>Cost Centre</th><th>Organization</th><th>Reason of Running</th><th>Status</th><th>Action</th>
+        </tr></thead>
+        <tbody id="allbk-tbody"></tbody>
       </table>
     </div>
   </div>
@@ -1540,8 +1603,8 @@ function notifyCalendarInvite(approvedGroup) {
     .catch(e => console.error('EmailJS send failed', e));
 }
 
-const BUNKERS = ['H4','H5','SKY-1','SKY-2','B1'];
-const BUNKER_COLORS = ['r1','r2','r3','r4','r5'];
+const BUNKERS = ['H4','H5'];
+const BUNKER_COLORS = ['r1','r2'];
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -1622,6 +1685,7 @@ function minsToHHMM(m) { return `${String(Math.floor(m/60)).padStart(2,'0')}:${S
 window.__onTabSwitch = function(tab) {
   if (tab === 'dashboard') { loadDayData(); }
   if (tab === 'analysis') { renderAnalysis(); }
+  if (tab === 'allbookings') { renderAllBookingsTable(); }
 }
 
 // ── FIREBASE ──────────────────────────────────────────────────
@@ -1683,6 +1747,7 @@ function initFirebase(cfg) {
       refreshBookingView(); if (currentDate) renderCards(); renderMonthly(); renderBookingCalendar();
       if (logCalVisible) renderLogCalendar();
       if (document.getElementById('tab-analysis').classList.contains('active')) renderAnalysis();
+      if (document.getElementById('tab-allbookings').classList.contains('active')) renderAllBookingsTable();
     });
     onValue(ref(db, 'feedback'), snap => {
       const serverFeedback = snap.val() || {};
@@ -2540,6 +2605,37 @@ function bookingStatusBadge(status) {
   return '<span class="confirmed-badge">Confirmed</span>';
 }
 
+// ── ALL BOOKINGS (every date, every status, one page) ──────────
+// A full log/reference view — reuses buildBookingRow so the columns,
+// status badges, and Edit/Cancel/Delete/Approve/Reject permissions stay
+// exactly consistent with every other table in the app.
+window.renderAllBookingsTable = function() {
+  const tbody = document.getElementById('allbk-tbody');
+  if (!tbody) return;
+  const bunkerFilter = document.getElementById('allbk-bunker-filter').value;
+  const statusFilter = document.getElementById('allbk-status-filter').value;
+
+  let items = Object.values(allBookings);
+  if (bunkerFilter !== 'ALL') items = items.filter(b => b.bunker === bunkerFilter);
+  if (statusFilter !== 'ALL') items = items.filter(b => (b.status || 'confirmed') === statusFilter);
+
+  // Chronological — earliest date first, then by start time within a day.
+  items.sort((a, b) => {
+    const dateCmp = (a.date || '').localeCompare(b.date || '');
+    if (dateCmp !== 0) return dateCmp;
+    return (a.startMins || 0) - (b.startMins || 0);
+  });
+
+  const countEl = document.getElementById('allbk-count');
+  if (countEl) countEl.textContent = `${items.length} booking${items.length === 1 ? '' : 's'}`;
+
+  if (items.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:20px">No bookings match these filters</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = items.map(b => buildBookingRow(b)).join('');
+}
+
 // ── ALL PENDING APPROVALS (across every date) ─────────────────
 // So approvers don't have to hunt through the calendar date by date —
 // every pending request, from any day, in one sorted list.
@@ -2595,6 +2691,11 @@ window.toggleCancelledSection = function() {
 }
 
 // ── BOOKING FORM ──────────────────────────────────────────────
+window.toggleExternalOrgField = function() {
+  const isExternal = document.getElementById('book-org-select').value === 'Other/External';
+  document.getElementById('book-org-external-field').style.display = isExternal ? 'block' : 'none';
+}
+
 window.toggleMultiDayFields = function() {
   const on = document.getElementById('book-multiday').checked;
   document.getElementById('book-enddate-field').style.display = on ? 'block' : 'none';
@@ -2612,6 +2713,9 @@ window.openBookingForm = function() {
   const viewDate = document.getElementById('booking-view-date').value;
   bookDateInput.value = viewDate || todayStr();
   document.getElementById('book-bunker').value = activeBookingBunker === 'ALL' ? BUNKERS[0] : activeBookingBunker;
+  document.getElementById('book-org-select').value = '';
+  document.getElementById('book-org-external').value = '';
+  document.getElementById('book-org-external-field').style.display = 'none';
   document.getElementById('book-multiday').checked = false;
   document.getElementById('book-multiday').closest('.form-field').style.display = 'flex';
   document.getElementById('book-enddate').value = '';
@@ -2622,7 +2726,9 @@ window.openBookingForm = function() {
 
 window.closeBookingForm = function() {
   document.getElementById('booking-form-modal').classList.remove('open');
-  ['book-name','book-org','book-project','book-purpose','book-contact','book-costcentre'].forEach(id => document.getElementById(id).value = '');
+  ['book-name','book-project','book-purpose','book-contact','book-costcentre','book-org-external'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('book-org-select').value = '';
+  document.getElementById('book-org-external-field').style.display = 'none';
   editBookingId = null;
   document.getElementById('booking-form-title').textContent = '📝 New Booking Request';
   document.getElementById('booking-form-submit-btn').textContent = 'Check & Confirm Booking';
@@ -2649,7 +2755,18 @@ window.openEditBookingForm = function(id) {
   document.getElementById('book-end').value = b.end || '';
   document.getElementById('book-name').value = b.name || '';
   document.getElementById('book-costcentre').value = b.costCentre || '';
-  document.getElementById('book-org').value = b.org || '';
+  const fixedOrgs = ['Science Team', 'Engineering Team', 'Projects & Operations'];
+  if (fixedOrgs.includes(b.org)) {
+    document.getElementById('book-org-select').value = b.org;
+    document.getElementById('book-org-external').value = '';
+    document.getElementById('book-org-external-field').style.display = 'none';
+  } else {
+    // Legacy free-text org, or a genuine external company — either way,
+    // Other/External is the closest fit and keeps the original text intact.
+    document.getElementById('book-org-select').value = b.org ? 'Other/External' : '';
+    document.getElementById('book-org-external').value = b.org || '';
+    document.getElementById('book-org-external-field').style.display = b.org ? 'block' : 'none';
+  }
   document.getElementById('book-project').value = b.projectName || '';
   document.getElementById('book-purpose').value = b.purpose || '';
   document.getElementById('book-contact').value = b.contact || '';
@@ -2672,7 +2789,9 @@ window.checkAndBook = async function() {
   const end = document.getElementById('book-end').value;
   const name = document.getElementById('book-name').value.trim();
   const costCentre = document.getElementById('book-costcentre').value.trim();
-  const org = document.getElementById('book-org').value.trim();
+  const orgSelect = document.getElementById('book-org-select').value;
+  const orgExternal = document.getElementById('book-org-external').value.trim();
+  const org = orgSelect === 'Other/External' ? orgExternal : orgSelect;
   const projectName = document.getElementById('book-project').value.trim();
   const purpose = document.getElementById('book-purpose').value.trim();
   const contact = document.getElementById('book-contact').value.trim();
@@ -2683,6 +2802,11 @@ window.checkAndBook = async function() {
 
   if (!date || (isMultiDay && !endDate)) {
     conflictEl.textContent = isMultiDay ? '⚠️ Please select a start and end date.' : '⚠️ Please select a date.';
+    conflictEl.classList.add('show'); return;
+  }
+
+  if (orgSelect === 'Other/External' && !orgExternal) {
+    conflictEl.textContent = '⚠️ Please enter the external company name.';
     conflictEl.classList.add('show'); return;
   }
 
@@ -2754,6 +2878,7 @@ window.checkAndBook = async function() {
   if (currentDate) renderCards();
   renderMonthly();
   renderBookingCalendar();
+  if (document.getElementById('tab-allbookings').classList.contains('active')) renderAllBookingsTable();
   if (!isEdit) notifyApproversOfNewBooking(createdBookings[0], createdBookings.length);
 
   const firstId = createdBookings[0].id;
@@ -2790,6 +2915,7 @@ window.confirmCancel = async function() {
   if (currentDate) renderCards();
   renderMonthly();
   renderBookingCalendar();
+  if (document.getElementById('tab-allbookings').classList.contains('active')) renderAllBookingsTable();
   if (b) notifyAdminsOfRemoval(b, 'cancelled');
   closeCancelModal();
   toast(`Booking ${cancelBookingId} cancelled`);
@@ -2833,6 +2959,7 @@ window.approveBooking = async function(id) {
   if (currentDate) renderCards();
   renderMonthly();
   renderBookingCalendar();
+  if (document.getElementById('tab-allbookings').classList.contains('active')) renderAllBookingsTable();
   notifyRequesterOfDecision(b, 'confirmed', group.length);
   notifyCalendarInvite(group);
   toast(group.length > 1 ? `✅ ${group.length}-day block approved` : `✅ Booking ${id} approved`);
@@ -2853,6 +2980,7 @@ window.rejectBooking = async function(id) {
   if (currentDate) renderCards();
   renderMonthly();
   renderBookingCalendar();
+  if (document.getElementById('tab-allbookings').classList.contains('active')) renderAllBookingsTable();
   notifyRequesterOfDecision(b, 'rejected', group.length);
   toast(group.length > 1 ? `${group.length}-day block rejected — slots are available again` : `Booking ${id} rejected — slot is available again`);
 }
@@ -2884,6 +3012,7 @@ window.confirmDelete = async function() {
   if (currentDate) renderCards();
   renderMonthly();
   renderBookingCalendar();
+  if (document.getElementById('tab-allbookings').classList.contains('active')) renderAllBookingsTable();
   if (b) notifyAdminsOfRemoval(b, 'deleted');
   closeDeleteModal();
   toast(`Booking ${id} deleted — slot is available again`);
@@ -2980,6 +3109,89 @@ window.deleteFeedback = async function(id) {
   }
   renderFeedbackSection();
   toast('Feedback item removed');
+}
+
+// ── ONE-TIME CLEANUP: retired SKY-1/SKY-2/B1 data ─────────────
+// TEMPORARY — remove this whole block (and its modal/button) once run.
+const RETIRED_BUNKERS = new Set(['SKY-1', 'SKY-2', 'B1']);
+let retiredStaleBookingIds = [];
+let retiredStaleDataKeys = [];
+
+window.openRetiredCleanupModal = function() {
+  retiredStaleBookingIds = Object.entries(allBookings)
+    .filter(([id, b]) => RETIRED_BUNKERS.has(b.bunker))
+    .map(([id]) => id);
+
+  retiredStaleDataKeys = [];
+  Object.entries(allData).forEach(([date, dayRec]) => {
+    Object.keys(dayRec || {}).forEach(key => {
+      if (RETIRED_BUNKERS.has(key)) retiredStaleDataKeys.push({ date, bunker: key });
+    });
+  });
+
+  const total = retiredStaleBookingIds.length + retiredStaleDataKeys.length;
+  if (total === 0) {
+    toast('✅ No SKY-1 / SKY-2 / B1 data found — nothing to clean up');
+    return;
+  }
+
+  document.getElementById('retired-cleanup-count').textContent = total;
+  const listEl = document.getElementById('retired-cleanup-list');
+  let html = '';
+  retiredStaleBookingIds.forEach(id => {
+    const b = allBookings[id];
+    html += `<div class="cal-detail-row">
+      <span class="cal-detail-bunker">${b.bunker}</span>
+      <span>${fmtDate(b.date)} ${b.start ? fmt24(b.start) + '–' + fmt24(b.end) : ''}</span>
+      <span>${b.name || ''}${b.org ? ' · ' + b.org : ''}</span>
+      <span class="bid">Booking ${id}</span>
+    </div>`;
+  });
+  retiredStaleDataKeys.forEach(({ date, bunker }) => {
+    html += `<div class="cal-detail-row">
+      <span class="cal-detail-bunker">${bunker}</span>
+      <span>${fmtDate(date)}</span>
+      <span style="color:var(--muted)">Daily Log entry (notes / hours / reason)</span>
+      <span class="bid">—</span>
+    </div>`;
+  });
+  listEl.innerHTML = html;
+  document.getElementById('retired-cleanup-modal').classList.add('open');
+}
+
+window.closeRetiredCleanupModal = function() { document.getElementById('retired-cleanup-modal').classList.remove('open'); }
+
+window.confirmRetiredCleanup = async function() {
+  for (const id of retiredStaleBookingIds) {
+    delete allBookings[id];
+    if (db) {
+      try { await set(ref(db, `bookings/${id}`), null); }
+      catch (e) { console.error('Firebase sync failed for booking', id, e); }
+    }
+  }
+  for (const { date, bunker } of retiredStaleDataKeys) {
+    if (allData[date]) delete allData[date][bunker];
+    if (db) {
+      try { await set(ref(db, `bunker_data/${date}/${bunker}`), null); }
+      catch (e) { console.error('Firebase sync failed for log entry', date, bunker, e); }
+    }
+  }
+  persistLocalBookings();
+  persistLocalData();
+
+  const removedCount = retiredStaleBookingIds.length + retiredStaleDataKeys.length;
+  retiredStaleBookingIds = [];
+  retiredStaleDataKeys = [];
+
+  refreshBookingView();
+  if (currentDate) renderCards();
+  renderMonthly();
+  renderBookingCalendar();
+  if (logCalVisible) renderLogCalendar();
+  if (document.getElementById('tab-analysis').classList.contains('active')) renderAnalysis();
+  if (document.getElementById('tab-allbookings').classList.contains('active')) renderAllBookingsTable();
+  closeRetiredCleanupModal();
+  toast(`🧹 Removed ${removedCount} item(s) from SKY-1 / SKY-2 / B1`);
 }
 
 // ── DOWNLOAD BOOKINGS CSV ─────────────────────────────────────
@@ -3156,7 +3368,7 @@ let analysisRange = 'today';
 let downtimeBunkerFilter = 'ALL';
 let notRunningBunkerFilter = 'ALL';
 const chartInstances = {};
-const BUNKER_CHART_COLORS = { H4:'#3b82f6', H5:'#8b5cf6', 'SKY-1':'#22c3d6', 'SKY-2':'#10b981', B1:'#ec4899' };
+const BUNKER_CHART_COLORS = { H4:'#3b82f6', H5:'#8b5cf6' };
 
 window.setAnalysisRange = function(range, btn) {
   analysisRange = range;
