@@ -178,7 +178,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; }
 .cal-dot-red { background: var(--red-light); border: 2px solid var(--red); }
 .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 6px; }
 .cal-weekdays div { text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--muted); padding: 4px 0; }
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
 .cal-day { position: relative; min-height: 88px; border-radius: 8px; padding: 6px; cursor: pointer; background: var(--surface); border: 2px solid var(--border); display: flex; flex-direction: column; transition: transform 0.1s, box-shadow 0.1s; }
 .cal-day:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); transform: translateY(-1px); }
 .cal-day-muted { min-height: 88px; background: var(--bg); border: 2px solid transparent; color: var(--muted); opacity: 0.5; cursor: default; }
@@ -836,19 +836,6 @@ tr:hover td { background: var(--bg); }
   </div>
 </div>
 
-<!-- CLEANUP OLD BUNKER NAMES MODAL -->
-<div class="modal-overlay" id="cleanup-modal">
-  <div class="modal modal-lg">
-    <h2>🧹 Remove Old Bunker Data</h2>
-    <p>Found <strong id="cleanup-count">0</strong> item(s) still filed under a bunker name that's no longer in use (anything not H4, H5, SKY-1, SKY-2, or B1). This permanently deletes them — including from Monthly Reports and exports. This cannot be undone.</p>
-    <div id="cleanup-list" style="background:var(--bg);border-radius:8px;padding:10px;margin-bottom:16px;max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;"></div>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeCleanupModal()">Cancel</button>
-      <button class="btn btn-danger" onclick="confirmCleanup()">Yes, Delete Them</button>
-    </div>
-  </div>
-</div>
-
 <!-- FEEDBACK MODAL -->
 <div class="modal-overlay" id="feedback-modal">
   <div class="modal">
@@ -1109,15 +1096,6 @@ tr:hover td { background: var(--bg); }
       <button class="btn btn-success" onclick="downloadBookingsCSV()">⬇ Download CSV</button>
       <button class="btn btn-primary" onclick="downloadBookingsPDF()">⬇ Download PDF Report</button>
     </div>
-  </div>
-
-  <!-- DATA CLEANUP -->
-  <div class="booking-download-card" style="margin-top:1.2rem">
-    <h4>🧹 Data Cleanup</h4>
-    <p style="font-size:0.82rem;color:var(--muted);margin-bottom:12px">
-      If bookings or logs were made under an old bunker name before the rename to H4 / H5 / SKY-1 / SKY-2 / B1, use this to find and remove them.
-    </p>
-    <button class="btn btn-danger" onclick="openCleanupOldBunkersModal()">Find old bunker data</button>
   </div>
 
   <!-- FEEDBACK & SUGGESTIONS (approver-only) -->
@@ -2909,96 +2887,6 @@ window.confirmDelete = async function() {
   if (b) notifyAdminsOfRemoval(b, 'deleted');
   closeDeleteModal();
   toast(`Booking ${id} deleted — slot is available again`);
-}
-
-// ── CLEAN UP OLD BUNKER NAMES ─────────────────────────────────
-// Finds bookings AND daily-log entries filed under a bunker name that isn't
-// in the current BUNKERS list (leftover from before a rename, e.g. old
-// H1/H2/H3 data from before the switch to H4/H5/SKY-1/SKY-2/B1) and removes
-// them after the person confirms exactly what's being deleted.
-let cleanupStaleBookingIds = [];
-let cleanupStaleDataKeys = []; // {date, bunker}
-
-window.openCleanupOldBunkersModal = function() {
-  const validSet = new Set(BUNKERS);
-
-  cleanupStaleBookingIds = Object.entries(allBookings)
-    .filter(([id, b]) => b.bunker && !validSet.has(b.bunker))
-    .map(([id]) => id);
-
-  cleanupStaleDataKeys = [];
-  Object.entries(allData).forEach(([date, dayRec]) => {
-    Object.keys(dayRec || {}).forEach(key => {
-      // dayRec has bunker sub-keys (e.g. "H1") plus a few non-bunker fields
-      // like "notes" — only flag keys that look like an old bunker name.
-      if (key !== 'notes' && !validSet.has(key)) {
-        cleanupStaleDataKeys.push({ date, bunker: key });
-      }
-    });
-  });
-
-  const total = cleanupStaleBookingIds.length + cleanupStaleDataKeys.length;
-  if (total === 0) {
-    toast('✅ No old-bunker data found — nothing to clean up');
-    return;
-  }
-
-  document.getElementById('cleanup-count').textContent = total;
-  const listEl = document.getElementById('cleanup-list');
-  let html = '';
-  cleanupStaleBookingIds.forEach(id => {
-    const b = allBookings[id];
-    html += `<div class="cal-detail-row">
-      <span class="cal-detail-bunker">${b.bunker}</span>
-      <span>${fmtDate(b.date)} ${b.start ? fmt24(b.start) + '–' + fmt24(b.end) : ''}</span>
-      <span>${b.name || ''}${b.org ? ' · ' + b.org : ''}</span>
-      <span class="bid">Booking ${id}</span>
-    </div>`;
-  });
-  cleanupStaleDataKeys.forEach(({ date, bunker }) => {
-    html += `<div class="cal-detail-row">
-      <span class="cal-detail-bunker">${bunker}</span>
-      <span>${fmtDate(date)}</span>
-      <span style="color:var(--muted)">Daily Log entry (notes / hours / reason)</span>
-      <span class="bid">—</span>
-    </div>`;
-  });
-  listEl.innerHTML = html;
-  document.getElementById('cleanup-modal').classList.add('open');
-}
-
-window.closeCleanupModal = function() { document.getElementById('cleanup-modal').classList.remove('open'); }
-
-window.confirmCleanup = async function() {
-  for (const id of cleanupStaleBookingIds) {
-    delete allBookings[id];
-    if (db) {
-      try { await set(ref(db, `bookings/${id}`), null); }
-      catch (e) { console.error('Firebase sync failed for booking', id, e); }
-    }
-  }
-  for (const { date, bunker } of cleanupStaleDataKeys) {
-    if (allData[date]) delete allData[date][bunker];
-    if (db) {
-      try { await set(ref(db, `bunker_data/${date}/${bunker}`), null); }
-      catch (e) { console.error('Firebase sync failed for log entry', date, bunker, e); }
-    }
-  }
-  persistLocalBookings();
-  persistLocalData();
-
-  const removedCount = cleanupStaleBookingIds.length + cleanupStaleDataKeys.length;
-  cleanupStaleBookingIds = [];
-  cleanupStaleDataKeys = [];
-
-  refreshBookingView();
-  if (currentDate) renderCards();
-  renderMonthly();
-  renderBookingCalendar();
-  if (logCalVisible) renderLogCalendar();
-  if (document.getElementById('tab-analysis').classList.contains('active')) renderAnalysis();
-  closeCleanupModal();
-  toast(`🧹 Removed ${removedCount} item(s) with old bunker names`);
 }
 
 // ── FEEDBACK (Report a Bug / Suggest a Feature) ───────────────
