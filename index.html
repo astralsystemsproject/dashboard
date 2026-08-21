@@ -153,6 +153,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; }
 .phase-badge-setup { background: var(--accent-light); color: var(--accent); }
 .phase-badge-run { background: var(--red-light); color: var(--red); }
 .phase-badge-cooldown { background: var(--amber-light); color: var(--amber); }
+.phase-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; margin-right: 3px; flex-shrink: 0; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-grid .full { grid-column: 1 / -1; }
 .form-field label { display: block; font-size: 0.78rem; font-weight: 500; color: var(--muted); margin-bottom: 4px; }
@@ -1888,7 +1889,7 @@ function renderBookingCalendar() {
     div.onclick = () => selectCalDate(c.dateStr);
 
     let eventsHtml = bookings.slice(0, 3).map(b =>
-      `<div class="cal-event" style="border-left-color:${BUNKER_CHART_COLORS[b.bunker] || 'var(--accent)'}" title="${b.name} · ${b.org || ''}">${b.status==='pending'?'⏳ ':''}${b.blockId?'🔗 ':''}${b.bunker} ${fmt24(b.start)} · ${b.projectName || b.name}${phaseBadgeHtml(b.phase)}</div>`
+      `<div class="cal-event" style="border-left-color:${BUNKER_CHART_COLORS[b.bunker] || 'var(--accent)'}" title="${b.name} · ${b.org || ''}">${phaseDotHtml(b.phase)}${b.status==='pending'?'⏳ ':''}${b.blockId?'🔗 ':''}${b.bunker} ${fmt24(b.start)} · ${b.projectName || b.name}${phaseBadgeHtml(b.phase)}</div>`
     ).join('');
     if (bookings.length > 3) eventsHtml += `<div class="cal-event-more">+${bookings.length - 3} more</div>`;
 
@@ -1976,7 +1977,7 @@ function renderBookingGrid() {
         cells += `<td class="${statusClass} ${isToday ? 'grid-col-today' : ''}"><div class="grid-cell-empty"></div></td>`;
       } else {
         const inner = bookings.map(b =>
-          `<div class="grid-booking-row" style="border-left-color:${BUNKER_CHART_COLORS[bunker] || 'var(--accent)'}" title="${b.projectName || ''} · ${b.name} · ${b.org || ''} · ${b.purpose || ''}${b.status==='pending'?' · Pending approval':''}${b.blockId?` · Day ${b.blockIndex}/${b.blockTotal} of a linked block`:''}${b.phase?` · Phase: ${b.phase}`:''}"><span class="grid-booking-time">${b.status==='pending'?'⏳ ':''}${b.blockId?'🔗 ':''}${fmt24(b.start)}–${fmt24(b.end)}</span><span class="grid-booking-name">${b.projectName || b.name}${phaseBadgeHtml(b.phase)}</span></div>`
+          `<div class="grid-booking-row" style="border-left-color:${BUNKER_CHART_COLORS[bunker] || 'var(--accent)'}" title="${b.projectName || ''} · ${b.name} · ${b.org || ''} · ${b.purpose || ''}${b.status==='pending'?' · Pending approval':''}${b.blockId?` · Day ${b.blockIndex}/${b.blockTotal} of a linked block`:''}${b.phase?` · Phase: ${b.phase}`:''}"><span class="grid-booking-time">${phaseDotHtml(b.phase)}${b.status==='pending'?'⏳ ':''}${b.blockId?'🔗 ':''}${fmt24(b.start)}–${fmt24(b.end)}</span><span class="grid-booking-name">${b.projectName || b.name}${phaseBadgeHtml(b.phase)}</span></div>`
         ).join('');
         cells += `<td class="${statusClass} ${isToday ? 'grid-col-today' : ''}">${inner}</td>`;
       }
@@ -2638,6 +2639,17 @@ function phaseBadgeHtml(phase) {
   if (!phase) return '';
   const label = { setup: '🔵 Setup', run: '🔴 Run', cooldown: '🟠 Cooldown' }[phase] || phase;
   return ` <span class="phase-badge phase-badge-${phase}">${label}</span>`;
+}
+
+// A tiny colored dot instead of the full text badge — used in calendar
+// chips, which are narrow enough that long text gets ellipsis-truncated
+// away entirely. Placed at the START of chip content (not the end) so it
+// survives truncation regardless of how long the rest of the line is.
+function phaseDotHtml(phase) {
+  if (!phase) return '';
+  const color = { setup: 'var(--accent)', run: 'var(--red)', cooldown: 'var(--amber)' }[phase];
+  const label = { setup: 'Setup', run: 'Run', cooldown: 'Cooldown' }[phase];
+  return `<span class="phase-dot" style="background:${color}" title="Phase: ${label}"></span>`;
 }
 
 function buildBookingRow(b) {
