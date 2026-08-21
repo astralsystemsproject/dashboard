@@ -149,6 +149,10 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; }
 .cancel-badge { display: inline-block; background: var(--red-light); color: var(--red); font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(248,113,113,0.35); cursor: pointer; }
 .cancel-badge:hover { background: var(--red); color: white; }
 .confirmed-badge { display: inline-block; background: var(--green-light); color: var(--green); font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+.phase-badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+.phase-badge-setup { background: var(--accent-light); color: var(--accent); }
+.phase-badge-run { background: var(--red-light); color: var(--red); }
+.phase-badge-cooldown { background: var(--amber-light); color: var(--amber); }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-grid .full { grid-column: 1 / -1; }
 .form-field label { display: block; font-size: 0.78rem; font-weight: 500; color: var(--muted); margin-bottom: 4px; }
@@ -176,6 +180,8 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; }
 .cal-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 .cal-dot-green { background: var(--green-light); border: 2px solid var(--green); }
 .cal-dot-red { background: var(--red-light); border: 2px solid var(--red); }
+.cal-dot-amber { background: var(--amber-light); border: 2px solid var(--amber); }
+.cal-dot-purple { background: rgba(139,92,246,0.14); border: 2px solid #8b5cf6; }
 .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 6px; }
 .cal-weekdays div { text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--muted); padding: 4px 0; }
 .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
@@ -186,11 +192,18 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; }
 .cal-day-num { font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; }
 .cal-day-booked { border-color: var(--green); background: var(--green-light); }
 .cal-day-free { border-color: var(--red); background: var(--red-light); }
+/* Booking Calendar day states — deliberately separate names from cal-day-booked/
+   cal-day-free above, which the Daily Log's own Month View already uses for an
+   unrelated (and oppositely-oriented) meaning: complete=green, needs-entry=red. */
+.cal-day-avail { border-color: var(--green); background: var(--green-light); }
+.cal-day-full { border-color: var(--red); background: var(--red-light); }
+.cal-day-pend { border-color: var(--amber); background: var(--amber-light); }
 .cal-day-today .cal-day-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: white; }
 .cal-day-selected { outline: 3px solid var(--accent); outline-offset: -1px; }
 .cal-day-events { display: flex; flex-direction: column; gap: 3px; overflow: hidden; }
 .cal-event { font-size: 0.68rem; padding: 2px 5px; border-radius: 4px; background: var(--surface); color: var(--text); border: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid var(--accent); }
 .cal-event-more { font-size: 0.66rem; color: var(--muted); font-weight: 600; padding-left: 5px; }
+.visitor-chip { font-size: 0.68rem; padding: 2px 5px; border-radius: 4px; background: rgba(139,92,246,0.14); color: #a78bfa; border: 1px solid rgba(139,92,246,0.35); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid #8b5cf6; cursor: pointer; }
 .cal-detail-row { display: grid; grid-template-columns: 50px 130px 1fr 1fr auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px; background: var(--bg); font-size: 0.8rem; margin-bottom: 6px; }
 .cal-detail-bunker { font-weight: 700; color: var(--accent); }
 .cal-detail-purpose { color: var(--muted); }
@@ -234,8 +247,9 @@ th.grid-bunker-cell { z-index: 5; }
    boundary so "has booking(s)" vs "no booking" reads the same way in
    both views. Border carries the status; background is a light tint of
    the same color so it's readable at a glance even before zooming in. */
-.grid-cell-booked { border: 2px solid var(--green) !important; background: var(--green-light); }
-.grid-cell-free { border: 2px solid var(--red) !important; background: var(--red-light); }
+.grid-cell-booked { border: 2px solid var(--red) !important; background: var(--red-light); }
+.grid-cell-free { border: 2px solid var(--green) !important; background: var(--green-light); }
+.grid-cell-pending { border: 2px solid var(--amber) !important; background: var(--amber-light); }
 .grid-cell-empty { min-height: 18px; }
 .grid-booking-row { font-size: 0.7rem; padding: 4px 6px; margin-bottom: 4px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 4px; white-space: nowrap; overflow: hidden; display: flex; flex-direction: column; gap: 1px; }
 .grid-booking-row:last-child { margin-bottom: 0; }
@@ -861,6 +875,37 @@ tr:hover td { background: var(--bg); }
   </div>
 </div>
 
+<!-- VISITOR MODAL -->
+<div class="modal-overlay" id="visitor-modal">
+  <div class="modal">
+    <button class="modal-close-x" onclick="closeVisitorModal()" aria-label="Close">&times;</button>
+    <h2>👤 Add Visitor</h2>
+    <p>Marks a visit on the calendar so everyone can see who's on site and when — separate from bunker bookings.</p>
+    <div class="conflict-alert" id="visitor-alert"></div>
+    <div class="success-alert" id="visitor-success"></div>
+    <label style="display:block;font-size:0.8rem;font-weight:500;margin-bottom:4px;color:var(--muted)">Visitor Name *</label>
+    <input type="text" id="visitor-name" placeholder="Who's visiting" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-size:0.85rem;margin-bottom:12px;background:var(--bg);color:var(--text)" autocomplete="off">
+    <label style="display:block;font-size:0.8rem;font-weight:500;margin-bottom:4px;color:var(--muted)">Organization *</label>
+    <input type="text" id="visitor-org" placeholder="e.g. UOB, UKAEA, or the team they're meeting" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-size:0.85rem;margin-bottom:12px;background:var(--bg);color:var(--text)" autocomplete="off">
+    <div style="display:flex;gap:10px;margin-bottom:12px">
+      <div style="flex:1">
+        <label style="display:block;font-size:0.8rem;font-weight:500;margin-bottom:4px;color:var(--muted)">Date *</label>
+        <input type="date" id="visitor-date" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-size:0.85rem;background:var(--bg);color:var(--text)">
+      </div>
+      <div style="flex:1">
+        <label style="display:block;font-size:0.8rem;font-weight:500;margin-bottom:4px;color:var(--muted)">End Date <span style="font-weight:400">(optional)</span></label>
+        <input type="date" id="visitor-enddate" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-size:0.85rem;background:var(--bg);color:var(--text)">
+      </div>
+    </div>
+    <label style="display:block;font-size:0.8rem;font-weight:500;margin-bottom:4px;color:var(--muted)">Notes <span style="font-weight:400">(optional)</span></label>
+    <textarea id="visitor-notes" class="notes-area" placeholder="Purpose of visit, which bunker/team they're seeing, host, etc." style="min-height:80px;margin-bottom:16px"></textarea>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeVisitorModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitVisitor()">Add Visitor</button>
+    </div>
+  </div>
+</div>
+
 <!-- BOOKING FORM MODAL -->
 <div class="modal-overlay" id="booking-form-modal">
   <div class="modal modal-lg">
@@ -877,15 +922,19 @@ tr:hover td { background: var(--bg); }
       </div>
       <div class="form-field">
         <label id="book-date-label">Date *</label>
-        <input type="date" id="book-date">
+        <input type="date" id="book-date" onchange="renderPhaseDayList()">
       </div>
       <div class="form-field" id="book-enddate-field" style="display:none">
         <label>End Date *</label>
-        <input type="date" id="book-enddate">
+        <input type="date" id="book-enddate" onchange="renderPhaseDayList()">
       </div>
       <div class="form-field full" style="display:flex;align-items:center;gap:8px;margin-top:-6px">
         <input type="checkbox" id="book-multiday" onchange="toggleMultiDayFields()" style="width:auto">
         <label style="margin:0;cursor:pointer" onclick="document.getElementById('book-multiday').click()">Book across multiple consecutive days (up to 14 days, same time each day)</label>
+      </div>
+      <div class="form-field full" id="book-phase-list-field" style="display:none">
+        <label>Mark Each Day's Phase <span style="font-weight:400;color:var(--muted)">(setup work vs. the actual run vs. cooldown — nobody should enter the bunker during Run or Cooldown)</span></label>
+        <div id="book-phase-list" style="display:flex;flex-direction:column;gap:6px;margin-top:6px"></div>
       </div>
       <div class="form-field">
         <label>Start Time (24hr) *</label>
@@ -1032,6 +1081,7 @@ tr:hover td { background: var(--bg); }
         <span id="cal-month-label" style="font-weight:600;min-width:130px;text-align:center;display:inline-block"></span>
         <button class="btn btn-sm" onclick="calNextMonth()">›</button>
         <button class="btn btn-sm btn-primary" onclick="calToday()">Today</button>
+        <button class="btn btn-sm" onclick="openVisitorModal()">👤 Add Visitor</button>
         <button class="btn btn-sm" onclick="toggleCalFullscreen()">⛶ Full Screen</button>
       </div>
     </div>
@@ -1043,8 +1093,10 @@ tr:hover td { background: var(--bg); }
 
     <div class="cal-view-panel" id="cal-month-view">
     <div class="cal-legend">
-      <span class="cal-legend-item"><span class="cal-dot cal-dot-green"></span> Has bookings</span>
-      <span class="cal-legend-item"><span class="cal-dot cal-dot-red"></span> No bookings</span>
+      <span class="cal-legend-item"><span class="cal-dot cal-dot-green"></span> Available</span>
+      <span class="cal-legend-item"><span class="cal-dot cal-dot-red"></span> Booked</span>
+      <span class="cal-legend-item"><span class="cal-dot cal-dot-amber"></span> Pending Approval</span>
+      <span class="cal-legend-item"><span class="cal-dot cal-dot-purple"></span> 👤 Visitor</span>
     </div>
     <div class="cal-weekdays">
       <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
@@ -1054,8 +1106,9 @@ tr:hover td { background: var(--bg); }
 
     <div class="cal-view-panel" id="cal-grid-view">
       <div class="cal-legend">
-        <span class="cal-legend-item"><span class="cal-dot cal-dot-green"></span> Has bookings</span>
-        <span class="cal-legend-item"><span class="cal-dot cal-dot-red"></span> No bookings</span>
+        <span class="cal-legend-item"><span class="cal-dot cal-dot-green"></span> Available</span>
+        <span class="cal-legend-item"><span class="cal-dot cal-dot-red"></span> Booked</span>
+        <span class="cal-legend-item"><span class="cal-dot cal-dot-amber"></span> Pending Approval</span>
       </div>
       <div class="grid-table-wrap">
         <table class="grid-table">
@@ -1266,7 +1319,7 @@ tr:hover td { background: var(--bg); }
   <div class="booking-top">
     <div>
       <h2>All Bookings</h2>
-      <p>Every booking ever made \u2014 reason, cost centre, project, and status, all in one place.</p>
+      <p>Every booking ever made — reason, cost centre, project, and status, all in one place.</p>
     </div>
   </div>
 
@@ -1589,6 +1642,7 @@ let db = null;
 let allData = {};
 let allBookings = {};
 let allFeedback = {};
+let allVisitors = {};
 
 // ── LOCAL PERSISTENCE (always-on baseline) ─────────────────────
 // Firebase requires a live connection to persist anything — if the DB
@@ -1600,6 +1654,7 @@ let allFeedback = {};
 const LS_DATA_KEY = 'bunker_local_data';
 const LS_BOOKINGS_KEY = 'bunker_local_bookings';
 const LS_FEEDBACK_KEY = 'bunker_local_feedback';
+const LS_VISITORS_KEY = 'bunker_local_visitors';
 function persistLocalData() {
   try { localStorage.setItem(LS_DATA_KEY, JSON.stringify(allData)); } catch (e) { console.error('Local save (bunker_data) failed', e); }
 }
@@ -1609,6 +1664,9 @@ function persistLocalBookings() {
 function persistLocalFeedback() {
   try { localStorage.setItem(LS_FEEDBACK_KEY, JSON.stringify(allFeedback)); } catch (e) { console.error('Local save (feedback) failed', e); }
 }
+function persistLocalVisitors() {
+  try { localStorage.setItem(LS_VISITORS_KEY, JSON.stringify(allVisitors)); } catch (e) { console.error('Local save (visitors) failed', e); }
+}
 function loadLocalData() {
   try { const raw = localStorage.getItem(LS_DATA_KEY); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
 }
@@ -1617,6 +1675,9 @@ function loadLocalBookings() {
 }
 function loadLocalFeedback() {
   try { const raw = localStorage.getItem(LS_FEEDBACK_KEY); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
+}
+function loadLocalVisitors() {
+  try { const raw = localStorage.getItem(LS_VISITORS_KEY); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
 }
 let currentDate = '';
 let dayData = {};
@@ -1688,7 +1749,7 @@ function initFirebase(cfg) {
     db = getDatabase(app);
     document.getElementById('conn-dot').className = 'conn-dot connected';
     document.getElementById('conn-label').textContent = 'Connected';
-    let firstDataSync = true, firstBookingsSync = true, firstFeedbackSync = true;
+    let firstDataSync = true, firstBookingsSync = true, firstFeedbackSync = true, firstVisitorsSync = true;
     onValue(ref(db, 'bunker_data'), snap => {
       const serverData = snap.val() || {};
       if (firstDataSync) {
@@ -1740,6 +1801,21 @@ function initFirebase(cfg) {
       allFeedback = serverFeedback;
       persistLocalFeedback();
       renderFeedbackSection();
+    });
+    onValue(ref(db, 'visitors'), snap => {
+      const serverVisitors = snap.val() || {};
+      if (firstVisitorsSync) {
+        firstVisitorsSync = false;
+        const localOnly = {};
+        Object.keys(allVisitors).forEach(id => { if (!(id in serverVisitors)) localOnly[id] = allVisitors[id]; });
+        if (Object.keys(localOnly).length) {
+          Object.entries(localOnly).forEach(([id, v]) => { set(ref(db, `visitors/${id}`), v).catch(e => console.error('Merge sync failed', e)); });
+          Object.assign(serverVisitors, localOnly);
+        }
+      }
+      allVisitors = serverVisitors;
+      persistLocalVisitors();
+      renderBookingCalendar();
     });
     return true;
   } catch(e) {
@@ -1804,15 +1880,22 @@ function renderBookingCalendar() {
       return;
     }
     const bookings = getBookingsForDate(c.dateStr, calBunkerFilter);
-    div.className = 'cal-day ' + (bookings.length > 0 ? 'cal-day-booked' : 'cal-day-free');
+    const hasConfirmed = bookings.some(b => b.status === 'confirmed');
+    const dayStatusClass = bookings.length === 0 ? 'cal-day-avail' : hasConfirmed ? 'cal-day-full' : 'cal-day-pend';
+    div.className = 'cal-day ' + dayStatusClass;
     if (c.dateStr === today) div.classList.add('cal-day-today');
     if (c.dateStr === calSelectedDate) div.classList.add('cal-day-selected');
     div.onclick = () => selectCalDate(c.dateStr);
 
     let eventsHtml = bookings.slice(0, 3).map(b =>
-      `<div class="cal-event" style="border-left-color:${BUNKER_CHART_COLORS[b.bunker] || 'var(--accent)'}" title="${b.name} · ${b.org || ''}">${b.status==='pending'?'⏳ ':''}${b.blockId?'🔗 ':''}${b.bunker} ${fmt24(b.start)} · ${b.projectName || b.name}</div>`
+      `<div class="cal-event" style="border-left-color:${BUNKER_CHART_COLORS[b.bunker] || 'var(--accent)'}" title="${b.name} · ${b.org || ''}">${b.status==='pending'?'⏳ ':''}${b.blockId?'🔗 ':''}${b.bunker} ${fmt24(b.start)} · ${b.projectName || b.name}${phaseBadgeHtml(b.phase)}</div>`
     ).join('');
     if (bookings.length > 3) eventsHtml += `<div class="cal-event-more">+${bookings.length - 3} more</div>`;
+
+    const visitors = getVisitorsForDate(c.dateStr);
+    eventsHtml += visitors.map(v =>
+      `<div class="visitor-chip" onclick="event.stopPropagation(); handleVisitorClick('${v.id}')" title="${v.notes || ''}">\ud83d\udc64 ${v.name} \u00b7 ${v.org}</div>`
+    ).join('');
 
     div.innerHTML = `<span class="cal-day-num">${c.day}</span><div class="cal-day-events">${eventsHtml}</div>`;
     grid.appendChild(div);
@@ -1887,12 +1970,13 @@ function renderBookingGrid() {
       const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const isToday = dateStr === today;
       const bookings = getBookingsForDay(bunker, dateStr);
-      const statusClass = bookings.length > 0 ? 'grid-cell-booked' : 'grid-cell-free';
+      const hasConfirmed = bookings.some(b => b.status === 'confirmed');
+      const statusClass = bookings.length === 0 ? 'grid-cell-free' : hasConfirmed ? 'grid-cell-booked' : 'grid-cell-pending';
       if (bookings.length === 0) {
         cells += `<td class="${statusClass} ${isToday ? 'grid-col-today' : ''}"><div class="grid-cell-empty"></div></td>`;
       } else {
         const inner = bookings.map(b =>
-          `<div class="grid-booking-row" style="border-left-color:${BUNKER_CHART_COLORS[bunker] || 'var(--accent)'}" title="${b.projectName || ''} · ${b.name} · ${b.org || ''} · ${b.purpose || ''}${b.status==='pending'?' · Pending approval':''}${b.blockId?` · Day ${b.blockIndex}/${b.blockTotal} of a linked block`:''}"><span class="grid-booking-time">${b.status==='pending'?'⏳ ':''}${b.blockId?'🔗 ':''}${fmt24(b.start)}–${fmt24(b.end)}</span><span class="grid-booking-name">${b.projectName || b.name}</span></div>`
+          `<div class="grid-booking-row" style="border-left-color:${BUNKER_CHART_COLORS[bunker] || 'var(--accent)'}" title="${b.projectName || ''} · ${b.name} · ${b.org || ''} · ${b.purpose || ''}${b.status==='pending'?' · Pending approval':''}${b.blockId?` · Day ${b.blockIndex}/${b.blockTotal} of a linked block`:''}${b.phase?` · Phase: ${b.phase}`:''}"><span class="grid-booking-time">${b.status==='pending'?'⏳ ':''}${b.blockId?'🔗 ':''}${fmt24(b.start)}–${fmt24(b.end)}</span><span class="grid-booking-name">${b.projectName || b.name}${phaseBadgeHtml(b.phase)}</span></div>`
         ).join('');
         cells += `<td class="${statusClass} ${isToday ? 'grid-col-today' : ''}">${inner}</td>`;
       }
@@ -2550,12 +2634,18 @@ window.refreshBookingView = function() {
   tbody.innerHTML = allForDay.map(b => buildBookingRow(b)).join('');
 }
 
+function phaseBadgeHtml(phase) {
+  if (!phase) return '';
+  const label = { setup: '🔵 Setup', run: '🔴 Run', cooldown: '🟠 Cooldown' }[phase] || phase;
+  return ` <span class="phase-badge phase-badge-${phase}">${label}</span>`;
+}
+
 function buildBookingRow(b) {
   const manageable = canManageBooking(b);
   return `<tr${b.status==='pending'?' style="background:rgba(251,191,36,0.06)"':''}>
     <td><span class="bid">${b.id}</span></td>
     <td>${(b.bunker||'')}</td>
-    <td style="white-space:nowrap">${fmtDate(b.date)}${b.blockId?` <span title="Part of a ${b.blockTotal}-day block" style="background:var(--accent-light);color:var(--accent);font-size:0.65rem;font-weight:700;padding:1px 5px;border-radius:3px;white-space:nowrap">🔗 ${b.blockIndex}/${b.blockTotal}</span>`:''}</td>
+    <td style="white-space:nowrap">${fmtDate(b.date)}${b.blockId?` <span title="Part of a ${b.blockTotal}-day block" style="background:var(--accent-light);color:var(--accent);font-size:0.65rem;font-weight:700;padding:1px 5px;border-radius:3px;white-space:nowrap">🔗 ${b.blockIndex}/${b.blockTotal}</span>`:''}${phaseBadgeHtml(b.phase)}</td>
     <td>${b.start?fmt24(b.start):'—'}</td><td>${b.end?fmt24(b.end):'—'}</td>
     <td>${b.startMins!=null&&b.endMins!=null?fmt(b.endMins-b.startMins):'—'}</td>
     <td>${b.name||'—'}</td><td>${b.projectName||'—'}</td><td>${b.costCentre||'—'}</td><td>${b.org||'—'}</td>
@@ -2677,10 +2767,48 @@ window.toggleMultiDayFields = function() {
   const on = document.getElementById('book-multiday').checked;
   document.getElementById('book-enddate-field').style.display = on ? 'block' : 'none';
   document.getElementById('book-date-label').textContent = on ? 'Start Date *' : 'Date *';
+  document.getElementById('book-phase-list-field').style.display = on ? 'block' : 'none';
   if (on) {
     const start = document.getElementById('book-date').value || todayStr();
     if (!document.getElementById('book-enddate').value) document.getElementById('book-enddate').value = start;
   }
+  renderPhaseDayList();
+}
+
+// Builds one Setup/Run/Cooldown dropdown per day in the chosen date range.
+// Simple, day-level version: a whole calendar day is tagged as one phase —
+// it doesn't (yet) know about exact hours within a day, e.g. a run that
+// starts mid-afternoon and cooldown continuing into the next morning.
+// Preserves any selections already made if the range changes size, rather
+// than resetting everything back to the "Setup" default.
+window.renderPhaseDayList = function() {
+  const container = document.getElementById('book-phase-list');
+  if (!container) return;
+  if (!document.getElementById('book-multiday').checked) { container.innerHTML = ''; return; }
+
+  const start = document.getElementById('book-date').value;
+  const end = document.getElementById('book-enddate').value;
+  if (!start || !end || end < start) { container.innerHTML = '<span style="font-size:0.8rem;color:var(--muted)">Pick a start and end date above first.</span>'; return; }
+
+  const existing = {};
+  container.querySelectorAll('select[data-phase-date]').forEach(sel => { existing[sel.dataset.phaseDate] = sel.value; });
+
+  let dateList = [];
+  let cur = new Date(start + 'T00:00:00');
+  const last = new Date(end + 'T00:00:00');
+  while (cur <= last && dateList.length < 14) { dateList.push(localDateStr(cur)); cur.setDate(cur.getDate() + 1); }
+
+  container.innerHTML = dateList.map((d, i) => {
+    const defaultPhase = existing[d] || (i === dateList.length - 1 ? 'run' : 'setup');
+    return `<div style="display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:6px 10px">
+      <span style="font-size:0.82rem;min-width:110px">${fmtDate(d)}</span>
+      <select data-phase-date="${d}" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;background:var(--surface);color:var(--text)">
+        <option value="setup" ${defaultPhase==='setup'?'selected':''}>\ud83d\udd35 Setup</option>
+        <option value="run" ${defaultPhase==='run'?'selected':''}>\ud83d\udd34 Run</option>
+        <option value="cooldown" ${defaultPhase==='cooldown'?'selected':''}>\ud83d\udfe0 Cooldown</option>
+      </select>
+    </div>`;
+  }).join('');
 }
 
 window.openBookingForm = function() {
@@ -2829,6 +2957,10 @@ window.checkAndBook = async function() {
   const isEdit = !!editBookingId;
   const blockId = (!isEdit && dateList.length > 1) ? ('BLK' + Date.now().toString(36).toUpperCase()) : null;
   const createdBookings = [];
+  const phaseByDate = {};
+  if (isMultiDay) {
+    document.querySelectorAll('#book-phase-list select[data-phase-date]').forEach(sel => { phaseByDate[sel.dataset.phaseDate] = sel.value; });
+  }
 
   for (let i = 0; i < dateList.length; i++) {
     const d = dateList[i];
@@ -2841,6 +2973,7 @@ window.checkAndBook = async function() {
       submittedByEmail: prior ? prior.submittedByEmail : currentUserEmail,
       ...(isEdit ? { editedAt: new Date().toISOString() } : {}),
       ...(blockId ? { blockId, blockIndex: i + 1, blockTotal: dateList.length } : {}),
+      ...(phaseByDate[d] ? { phase: phaseByDate[d] } : {}),
     };
     allBookings[id] = booking;
     createdBookings.push(booking);
@@ -3086,6 +3219,94 @@ window.deleteFeedback = async function(id) {
   }
   renderFeedbackSection();
   toast('Feedback item removed');
+}
+
+// ── VISITORS (marked on the Booking Calendar, separate from bunker bookings) ──
+window.openVisitorModal = function() {
+  document.getElementById('visitor-name').value = '';
+  document.getElementById('visitor-org').value = '';
+  document.getElementById('visitor-date').value = calSelectedDate || todayStr();
+  document.getElementById('visitor-enddate').value = '';
+  document.getElementById('visitor-notes').value = '';
+  document.getElementById('visitor-alert').classList.remove('show');
+  document.getElementById('visitor-success').classList.remove('show');
+  document.getElementById('visitor-modal').classList.add('open');
+}
+
+window.closeVisitorModal = function() {
+  document.getElementById('visitor-modal').classList.remove('open');
+}
+
+window.submitVisitor = async function() {
+  const name = document.getElementById('visitor-name').value.trim();
+  const org = document.getElementById('visitor-org').value.trim();
+  const date = document.getElementById('visitor-date').value;
+  const endDate = document.getElementById('visitor-enddate').value || date;
+  const notes = document.getElementById('visitor-notes').value.trim();
+  const alertEl = document.getElementById('visitor-alert');
+  const successEl = document.getElementById('visitor-success');
+  alertEl.classList.remove('show'); successEl.classList.remove('show');
+
+  if (!name || !org || !date) {
+    alertEl.textContent = '⚠️ Please fill in visitor name, organization, and date.';
+    alertEl.classList.add('show');
+    return;
+  }
+  if (endDate < date) {
+    alertEl.textContent = '⚠️ End date must be on or after the start date.';
+    alertEl.classList.add('show');
+    return;
+  }
+
+  const id = 'VIS' + Date.now().toString(36).toUpperCase();
+  const item = { id, name, org, date, endDate, notes, addedBy: currentUserEmail || 'unknown', addedAt: new Date().toISOString() };
+  allVisitors[id] = item;
+  persistLocalVisitors();
+  if (db) {
+    try { await set(ref(db, `visitors/${id}`), item); }
+    catch (e) { console.error('Firebase sync failed, kept locally', e); toast('⚠️ Saved on this device — sync to server failed'); }
+  }
+  renderBookingCalendar();
+
+  successEl.textContent = '✅ Visitor added to the calendar.';
+  successEl.classList.add('show');
+  toast('👤 Visitor added');
+  setTimeout(() => closeVisitorModal(), 1500);
+}
+
+// Every visitor whose date range covers a given day — used by the Month
+// view to show visitor markers alongside bunker bookings on that day.
+function getVisitorsForDate(dateStr) {
+  return Object.values(allVisitors).filter(v => v.date <= dateStr && (v.endDate || v.date) >= dateStr);
+}
+
+// Click a visitor chip to see the details and, if you added it (or you're
+// an approver), delete it. Kept as a lightweight confirm rather than a
+// whole extra modal, since a visitor marker is informational, not a
+// booking — same "requester or approver" permission rule as everywhere else.
+window.handleVisitorClick = function(id) {
+  const v = allVisitors[id];
+  if (!v) return;
+  const canManage = isApprover() || (v.addedBy && currentUserEmail && v.addedBy.toLowerCase() === currentUserEmail);
+  const range = v.date === v.endDate ? fmtDate(v.date) : `${fmtDate(v.date)} \u2013 ${fmtDate(v.endDate)}`;
+  const details = `${v.name} (${v.org})\n${range}${v.notes ? '\n\n' + v.notes : ''}`;
+  if (!canManage) { alert(details); return; }
+  if (confirm(details + '\n\nRemove this visitor entry?')) deleteVisitor(id);
+}
+
+window.deleteVisitor = async function(id) {
+  const v = allVisitors[id];
+  if (!v) return;
+  const canManage = isApprover() || (v.addedBy && currentUserEmail && v.addedBy.toLowerCase() === currentUserEmail);
+  if (!canManage) { toast('🚫 Only whoever added this, or an approver, can remove it'); return; }
+  delete allVisitors[id];
+  persistLocalVisitors();
+  if (db) {
+    try { await set(ref(db, `visitors/${id}`), null); }
+    catch (e) { console.error('Firebase sync failed, kept locally', e); toast('⚠️ Removed on this device — sync to server failed'); }
+  }
+  renderBookingCalendar();
+  toast('Visitor entry removed');
 }
 
 // ── DOWNLOAD BOOKINGS CSV ─────────────────────────────────────
@@ -3631,6 +3852,7 @@ function init() {
   allData = loadLocalData();
   allBookings = loadLocalBookings();
   allFeedback = loadLocalFeedback();
+  allVisitors = loadLocalVisitors();
   renderCards();
   renderMonthly();
   renderBookingCalendar();
