@@ -1443,6 +1443,15 @@ const APPROVER_EMAILS = [
 let currentUserEmail = '';
 function isApprover() { return APPROVER_EMAILS.includes((currentUserEmail || '').toLowerCase()); }
 
+// Who actually gets emailed for cancellations/deletions — deliberately a
+// smaller list than APPROVER_EMAILS. All 5 can still approve/reject/manage
+// bookings in the app; only these 3 get the email notifications.
+const NOTIFY_EMAILS = [
+  'han-ying@astralsystems.com',
+  'jiffin@astralsystems.com',
+  'alex@astralsystems.com',
+];
+
 // Only the person who submitted a booking, or one of the 5 approvers, can
 // Edit / Cancel / Delete it — everyone else can see it but not touch it.
 // Same caveat as isApprover(): a UI convenience, not a Firebase Rules-level
@@ -1564,7 +1573,7 @@ const EMAILJS_TEMPLATE_REMOVED = 'template_h169bdt';
 // Alex and Han Ying specifically get the "add to your calendar" link once a
 // booking is approved — kept separate from APPROVER_EMAILS since not every
 // approver necessarily wants every booking on their own personal calendar.
-const CALENDAR_NOTICE_EMAILS = ['jiffin@astralsystems.com']; // TESTING — swap to ['alex@astralsystems.com', 'han-ying@astralsystems.com'] once confirmed working
+const CALENDAR_NOTICE_EMAILS = ['alex@astralsystems.com', 'han-ying@astralsystems.com', 'jiffin@astralsystems.com'];
 
 // Builds a one-click "add to Outlook Web calendar" link. This is NOT a true
 // Accept/Decline meeting invite — a real one needs a .ics file attachment,
@@ -1586,9 +1595,10 @@ function notifyAdminsOfRemoval(booking, action) {
     return;
   }
   const params = {
-    to_email: APPROVER_EMAILS.join(', '),
+    to_email: NOTIFY_EMAILS.join(', '),
     notice_title: action === 'deleted' ? 'Booking Deleted' : 'Booking Cancelled',
-    notice_message: `A booking has been ${action} on the dashboard by ${currentUserEmail || 'unknown'}.`,
+    notice_message: `A booking has been ${action} on the dashboard.`,
+    action_by: currentUserEmail || 'unknown',
     booking_id: booking.id,
     bunker: booking.bunker,
     date: fmtDate(booking.date),
