@@ -1760,38 +1760,25 @@ function initFirebase(cfg) {
     db = getDatabase(app);
     document.getElementById('conn-dot').className = 'conn-dot connected';
     document.getElementById('conn-label').textContent = 'Connected';
-    let firstDataSync = true, firstBookingsSync = true, firstFeedbackSync = true, firstVisitorsSync = true;
     onValue(ref(db, 'bunker_data'), snap => {
-      const serverData = snap.val() || {};
-      if (firstDataSync) {
-        // One-time merge: push up any locally-saved dates the server
-        // doesn't have yet, instead of silently overwriting them.
-        firstDataSync = false;
-        const localOnly = {};
-        Object.keys(allData).forEach(dateStr => { if (!(dateStr in serverData)) localOnly[dateStr] = allData[dateStr]; });
-        if (Object.keys(localOnly).length) {
-          Object.entries(localOnly).forEach(([dateStr, rec]) => { set(ref(db, `bunker_data/${dateStr}`), rec).catch(e => console.error('Merge sync failed', e)); });
-          Object.assign(serverData, localOnly);
-        }
-      }
-      allData = serverData;
+      // Trust the server once connected — it's the shared source of truth.
+      // (Previously this tried to "protect" anything present locally but
+      // missing on the server, treating it as an unsynced local edit. That
+      // logic couldn't tell a genuine pending edit apart from something
+      // that had been deliberately deleted elsewhere — a stale local cache
+      // of a deleted entry looks identical to a real local edit gone
+      // unsynced. In practice that meant deletions could silently get
+      // pushed back onto the server from anyone's stale browser cache.
+      // Simpler and safer: local storage is just an offline fallback for
+      // display, never something reconciled back onto the server.)
+      allData = snap.val() || {};
       persistLocalData();
       loadDayData(); renderMonthly();
       if (logCalVisible) renderLogCalendar();
       if (document.getElementById('tab-analysis').classList.contains('active')) renderAnalysis();
     });
     onValue(ref(db, 'bookings'), snap => {
-      const serverBookings = snap.val() || {};
-      if (firstBookingsSync) {
-        firstBookingsSync = false;
-        const localOnly = {};
-        Object.keys(allBookings).forEach(id => { if (!(id in serverBookings)) localOnly[id] = allBookings[id]; });
-        if (Object.keys(localOnly).length) {
-          Object.entries(localOnly).forEach(([id, b]) => { set(ref(db, `bookings/${id}`), b).catch(e => console.error('Merge sync failed', e)); });
-          Object.assign(serverBookings, localOnly);
-        }
-      }
-      allBookings = serverBookings;
+      allBookings = snap.val() || {};
       persistLocalBookings();
       refreshBookingView(); if (currentDate) renderCards(); renderMonthly(); renderBookingCalendar();
       if (logCalVisible) renderLogCalendar();
@@ -1799,32 +1786,12 @@ function initFirebase(cfg) {
       if (document.getElementById('tab-allbookings').classList.contains('active')) renderAllBookingsTable();
     });
     onValue(ref(db, 'feedback'), snap => {
-      const serverFeedback = snap.val() || {};
-      if (firstFeedbackSync) {
-        firstFeedbackSync = false;
-        const localOnly = {};
-        Object.keys(allFeedback).forEach(id => { if (!(id in serverFeedback)) localOnly[id] = allFeedback[id]; });
-        if (Object.keys(localOnly).length) {
-          Object.entries(localOnly).forEach(([id, f]) => { set(ref(db, `feedback/${id}`), f).catch(e => console.error('Merge sync failed', e)); });
-          Object.assign(serverFeedback, localOnly);
-        }
-      }
-      allFeedback = serverFeedback;
+      allFeedback = snap.val() || {};
       persistLocalFeedback();
       renderFeedbackSection();
     });
     onValue(ref(db, 'visitors'), snap => {
-      const serverVisitors = snap.val() || {};
-      if (firstVisitorsSync) {
-        firstVisitorsSync = false;
-        const localOnly = {};
-        Object.keys(allVisitors).forEach(id => { if (!(id in serverVisitors)) localOnly[id] = allVisitors[id]; });
-        if (Object.keys(localOnly).length) {
-          Object.entries(localOnly).forEach(([id, v]) => { set(ref(db, `visitors/${id}`), v).catch(e => console.error('Merge sync failed', e)); });
-          Object.assign(serverVisitors, localOnly);
-        }
-      }
-      allVisitors = serverVisitors;
+      allVisitors = snap.val() || {};
       persistLocalVisitors();
       renderBookingCalendar();
     });
