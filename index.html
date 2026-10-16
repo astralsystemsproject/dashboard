@@ -161,6 +161,15 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; }
 .form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color: var(--accent); background: var(--surface); }
 .conflict-alert { background: rgba(248,113,113,0.10); border: 1px solid rgba(248,113,113,0.35); border-radius: 8px; padding: 12px 16px; font-size: 0.83rem; color: var(--red); margin-bottom: 12px; display: none; }
 .conflict-alert.show { display: block; }
+.overlap-panel { background: var(--amber-light); border: 1px solid rgba(251,191,36,0.45); border-radius: 8px; padding: 12px 14px; }
+.overlap-panel.danger { background: var(--red-light); border-color: rgba(248,113,113,0.5); }
+.overlap-panel .ov-item { padding: 3px 0; }
+.overlap-panel .ov-warn { margin-top: 6px; font-weight: 600; color: var(--red); }
+.overlap-tick { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; font-size: 0.82rem; cursor: pointer; color: var(--text); font-weight: 400; }
+.overlap-tick input { margin-top: 3px; flex-shrink: 0; }
+.cont-badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; white-space: nowrap; background: var(--accent-light); color: var(--accent); }
+.overlap-badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; white-space: nowrap; background: var(--amber-light); color: var(--amber); border: 1px solid rgba(251,191,36,0.4); }
+.overlap-badge.danger { background: var(--red-light); color: var(--red); border-color: rgba(248,113,113,0.4); }
 .success-alert { background: var(--green-light); border: 1px solid rgba(52,211,153,0.35); border-radius: 8px; padding: 12px 16px; font-size: 0.83rem; color: var(--green); margin-bottom: 12px; display: none; }
 .success-alert.show { display: block; }
 .booking-download-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); }
@@ -930,20 +939,33 @@ tr:hover td { background: var(--bg); }
         <input type="date" id="book-enddate" onchange="renderPhaseDayList()">
       </div>
       <div class="form-field full" style="display:flex;align-items:center;gap:8px;margin-top:-6px">
-        <input type="checkbox" id="book-multiday" onchange="toggleMultiDayFields()" style="width:auto">
+        <input type="checkbox" id="book-multiday" onchange="setRangeMode('multi')" style="width:auto">
         <label style="margin:0;cursor:pointer" onclick="document.getElementById('book-multiday').click()">Book across multiple consecutive days (up to 14 days, same time each day)</label>
+      </div>
+      <div class="form-field full" id="book-continuous-field" style="display:flex;align-items:center;gap:8px;margin-top:-6px">
+        <input type="checkbox" id="book-continuous" onchange="setRangeMode('continuous')" style="width:auto">
+        <label style="margin:0;cursor:pointer" onclick="document.getElementById('book-continuous').click()">One continuous run across midnight (e.g. 24h: start 10:00 Tuesday, end 10:00 Wednesday)</label>
       </div>
       <div class="form-field full" id="book-phase-list-field" style="display:none">
         <label>Mark Each Day's Phase <span style="font-weight:400;color:var(--muted)">(setup work vs. the actual run vs. cooldown — nobody should enter the bunker during Run or Cooldown)</span></label>
         <div id="book-phase-list" style="display:flex;flex-direction:column;gap:6px;margin-top:6px"></div>
       </div>
       <div class="form-field">
-        <label>Start Time (24hr) *</label>
+        <label id="book-start-label">Start Time (24hr) *</label>
         <input type="time" id="book-start">
       </div>
       <div class="form-field">
-        <label>End Time (24hr) *</label>
+        <label id="book-end-label">End Time (24hr) *</label>
         <input type="time" id="book-end">
+      </div>
+      <div class="form-field full" id="book-overlap-field" style="display:none">
+        <div id="book-overlap-panel" class="overlap-panel">
+          <div id="book-overlap-list" style="font-size:0.82rem;line-height:1.5"></div>
+          <label class="overlap-tick">
+            <input type="checkbox" id="book-overlap" style="width:auto">
+            <span><strong>Runs alongside another booking</strong> &mdash; I know this overlaps the booking(s) above and both teams can work in the bunker at the same time. An approver must sign off on the overlap.</span>
+          </label>
+        </div>
       </div>
       <div class="form-field">
         <label>Your Name *</label>
@@ -1496,24 +1518,31 @@ if (typeof emailjs !== 'undefined' && EMAILJS_PUBLIC_KEY && !EMAILJS_PUBLIC_KEY.
   catch (e) { console.warn('EmailJS init failed', e); }
 }
 
-function notifyApproversOfNewBooking(booking, dayCount = 1) {
+function notifyApproversOfNewBooking(booking, dayCount = 1, overlaps = []) {
   if (!emailjsReady || !EMAILJS_TEMPLATE_ID || EMAILJS_TEMPLATE_ID.startsWith('PASTE_')) {
     console.warn('EmailJS not fully configured yet — skipping approver email for booking', booking.id);
     return;
   }
   const durationHrs = (((booking.endMins || 0) - (booking.startMins || 0)) / 60).toFixed(2);
-  const dateLabel = dayCount > 1 ? `${fmtDate(booking.date)} (first of ${dayCount} consecutive days)` : fmtDate(booking.date);
+  const cont = !!booking.continuousRun;
+  const dateLabel = cont ? `${fmtDate(booking.runStartDate)} ${fmt24(booking.runStartTime)} \u2192 ${fmtDate(booking.runEndDate)} ${fmt24(booking.runEndTime)} (continuous run)` : dayCount > 1 ? `${fmtDate(booking.date)} (first of ${dayCount} consecutive days)` : fmtDate(booking.date);
   const params = {
     booking_id: booking.id + (dayCount > 1 ? ` (+${dayCount - 1} more day${dayCount > 2 ? 's' : ''} linked)` : ''),
     bunker: booking.bunker,
     date: dateLabel,
-    start_time: fmt24(booking.start),
-    end_time: fmt24(booking.end),
-    duration: durationHrs + ' hrs' + (dayCount > 1 ? ` \u00d7 ${dayCount} days` : ''),
+    start_time: cont ? fmt24(booking.runStartTime) : fmt24(booking.start),
+    end_time: cont ? fmt24(booking.runEndTime) : fmt24(booking.end),
+    duration: cont ? `${(runTotalMins(booking) / 60).toFixed(1)} hrs continuous (${dayCount} linked days)` : durationHrs + ' hrs' + (dayCount > 1 ? ` \u00d7 ${dayCount} days` : ''),
     requester_name: booking.name,
     requester_org: booking.org,
     cost_centre: booking.costCentre || '\u2014',
-    purpose: booking.purpose,
+    // No template edit needed: the overlap warning rides inside the existing "purpose" field.
+    purpose: booking.purpose + (overlaps.length
+      ? ' \u26a0\ufe0f RUNS ALONGSIDE ' + overlaps.length + ' OTHER BOOKING' + (overlaps.length > 1 ? 'S' : '') + ': '
+        + overlaps.slice(0, 3).map(o => (o.projectName || 'untitled') + ' (' + (o.name || '?') + ', ' + fmt24(o.start) + '\u2013' + fmt24(o.end) + (o.phase ? ', ' + o.phase + ' day' : '') + ')').join('; ')
+        + (overlaps.some(o => o.phase === 'run' || o.phase === 'cooldown') ? ' \u2014 \ud83d\uded1 overlaps a RUN/COOLDOWN day, check safety before approving' : '')
+        + '. Needs explicit sign-off.'
+      : ''),
     contact: booking.contact || '\u2014',
   };
   emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, params)
@@ -1584,8 +1613,8 @@ function buildOutlookCalendarLink(booking) {
   const subject = encodeURIComponent(`${booking.bunker} \u2014 ${booking.purpose || 'Bunker Booking'}`);
   const body = encodeURIComponent(`Booking ID: ${booking.id}\nBooked by: ${booking.name} (${booking.org})\nApproved via the Astral Bunker Booking System.`);
   const location = encodeURIComponent(booking.bunker);
-  const startdt = encodeURIComponent(`${booking.date}T${booking.start}:00`);
-  const enddt = encodeURIComponent(`${booking.date}T${booking.end}:00`);
+  const startdt = encodeURIComponent(booking.continuousRun ? `${booking.runStartDate}T${booking.runStartTime}:00` : `${booking.date}T${booking.start}:00`);
+  const enddt = encodeURIComponent(booking.continuousRun ? `${booking.runEndDate}T${booking.runEndTime}:00` : `${booking.date}T${booking.end}:00`);
   return `https://outlook.office.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent&startdt=${startdt}&enddt=${enddt}&subject=${subject}&body=${body}&location=${location}&allday=false`;
 }
 
@@ -1623,7 +1652,10 @@ function notifyCalendarInvite(approvedGroup) {
   }
   const b = approvedGroup[0];
   const last = approvedGroup[approvedGroup.length - 1];
-  const linkLines = approvedGroup
+  // A continuous run is ONE calendar event for the whole run, not one per day.
+  const linkLines = b.continuousRun
+    ? `${fmtDate(b.runStartDate)} ${fmt24(b.runStartTime)} \u2192 ${fmtDate(b.runEndDate)} ${fmt24(b.runEndTime)}: ${buildOutlookCalendarLink(b)}`
+    : approvedGroup
     .map(item => `${fmtDate(item.date)} (${fmt24(item.start)}\u2013${fmt24(item.end)}): ${buildOutlookCalendarLink(item)}`)
     .join('\n');
   const params = {
@@ -1632,9 +1664,9 @@ function notifyCalendarInvite(approvedGroup) {
     notice_message: 'This booking has been approved and confirmed. Click a link below to add it to your Outlook calendar (one click, then Save):',
     booking_id: b.id + (approvedGroup.length > 1 ? ` (+${approvedGroup.length - 1} more linked day${approvedGroup.length > 2 ? 's' : ''})` : ''),
     bunker: b.bunker,
-    date: approvedGroup.length > 1 ? `${fmtDate(b.date)} \u2013 ${fmtDate(last.date)}` : fmtDate(b.date),
-    start_time: fmt24(b.start),
-    end_time: fmt24(b.end),
+    date: b.continuousRun ? `${fmtDate(b.runStartDate)} \u2192 ${fmtDate(b.runEndDate)} (continuous run)` : approvedGroup.length > 1 ? `${fmtDate(b.date)} \u2013 ${fmtDate(last.date)}` : fmtDate(b.date),
+    start_time: b.continuousRun ? fmt24(b.runStartTime) : fmt24(b.start),
+    end_time: b.continuousRun ? fmt24(b.runEndTime) : fmt24(b.end),
     requester_name: b.name,
     requester_org: b.org,
     calendar_link: linkLines,
@@ -1866,7 +1898,7 @@ function renderBookingCalendar() {
     div.onclick = () => selectCalDate(c.dateStr);
 
     let eventsHtml = bookings.slice(0, 3).map(b =>
-      `<div class="cal-event" style="border-left-color:${BUNKER_CHART_COLORS[b.bunker] || 'var(--accent)'}" title="${b.name} · ${b.org || ''}">${phaseDotHtml(b.phase)}${b.status==='pending'?'⏳ ':''}${b.blockId?'🔗 ':''}${b.bunker} ${fmt24(b.start)} · ${b.projectName || b.name}${phaseBadgeHtml(b.phase)}</div>`
+      `<div class="cal-event" style="border-left-color:${BUNKER_CHART_COLORS[b.bunker] || 'var(--accent)'}" title="${b.name} · ${b.org || ''}">${phaseDotHtml(b.phase)}${b.status==='pending'?'⏳ ':''}${b.blockId?'🔗 ':''}${b.runsAlongside?'👥 ':''}${b.bunker} ${fmt24(b.start)} · ${b.projectName || b.name}${phaseBadgeHtml(b.phase)}</div>`
     ).join('');
     if (bookings.length > 3) eventsHtml += `<div class="cal-event-more">+${bookings.length - 3} more</div>`;
 
@@ -1954,7 +1986,7 @@ function renderBookingGrid() {
         cells += `<td class="${statusClass} ${isToday ? 'grid-col-today' : ''}"><div class="grid-cell-empty"></div></td>`;
       } else {
         const inner = bookings.map(b =>
-          `<div class="grid-booking-row" style="border-left-color:${BUNKER_CHART_COLORS[bunker] || 'var(--accent)'}" title="${b.projectName || ''} · ${b.name} · ${b.org || ''} · ${b.purpose || ''}${b.status==='pending'?' · Pending approval':''}${b.blockId?` · Day ${b.blockIndex}/${b.blockTotal} of a linked block`:''}${b.phase?` · Phase: ${b.phase}`:''}"><span class="grid-booking-time">${phaseDotHtml(b.phase)}${b.status==='pending'?'⏳ ':''}${b.blockId?'🔗 ':''}${fmt24(b.start)}–${fmt24(b.end)}</span><span class="grid-booking-name">${b.projectName || b.name}${phaseBadgeHtml(b.phase)}</span></div>`
+          `<div class="grid-booking-row" style="border-left-color:${BUNKER_CHART_COLORS[bunker] || 'var(--accent)'}" title="${b.projectName || ''} · ${b.name} · ${b.org || ''} · ${b.purpose || ''}${b.status==='pending'?' · Pending approval':''}${b.blockId?` · Day ${b.blockIndex}/${b.blockTotal} of a linked block`:''}${b.phase?` · Phase: ${b.phase}`:''}"><span class="grid-booking-time">${phaseDotHtml(b.phase)}${b.status==='pending'?'⏳ ':''}${b.blockId?'🔗 ':''}${b.runsAlongside?'👥 ':''}${fmt24(b.start)}–${fmt24(b.end)}</span><span class="grid-booking-name">${b.projectName || b.name}${phaseBadgeHtml(b.phase)}</span></div>`
         ).join('');
         cells += `<td class="${statusClass} ${isToday ? 'grid-col-today' : ''}">${inner}</td>`;
       }
@@ -2431,7 +2463,7 @@ window.renderMonthly = function() {
     BUNKERS.forEach(rId => {
       const rd = dayRec[rId] || {};
       const slots = Object.entries(allBookings)
-        .filter(([id, b]) => b.bunker === rId && b.date === dateStr && b.status !== 'cancelled')
+        .filter(([id, b]) => b.bunker === rId && b.date === dateStr && blocksSlot(b.status))
         .map(([id, b]) => ({ id, ...b }));
 
       // Always render 4 separate <td> cells (never colspan) so column
@@ -2629,12 +2661,27 @@ function phaseDotHtml(phase) {
   return `<span class="phase-dot" style="background:${color}" title="Phase: ${label}"></span>`;
 }
 
+// "⚠ Overlaps H4-xxx" on the booking that opted in, "👥 Shared slot" on the
+// booking being overlapped. Computed live, so it disappears if the other
+// booking is cancelled, rejected or deleted.
+function overlapBadgeHtml(b) {
+  if (b.status === 'cancelled' || b.status === 'rejected') return '';
+  const active = (b.overlapsWith || []).map(id => allBookings[id]).filter(o => o && blocksSlot(o.status));
+  if (b.runsAlongside && active.length) {
+    const risky = b.overlapsRunPhase || overlapTouchesRunPhase(active);
+    return ` <span class="overlap-badge${risky?' danger':''}" title="Runs alongside: ${active.map(o=>o.id+' ('+(o.projectName||'')+')').join(', ')}${risky?' \u2014 overlaps a Run/Cooldown day':''}">${risky?'\ud83d\uded1':'\u26a0\ufe0f'} Overlaps ${active.map(o=>o.id).join(', ')}</span>`;
+  }
+  const sharers = Object.values(allBookings).filter(o => o.runsAlongside && blocksSlot(o.status) && (o.overlapsWith || []).includes(b.id));
+  if (sharers.length) return ` <span class="overlap-badge" title="Another booking runs alongside this one: ${sharers.map(o=>o.id).join(', ')}">\ud83d\udc65 Shared slot</span>`;
+  return '';
+}
+
 function buildBookingRow(b) {
   const manageable = canManageBooking(b);
   return `<tr${b.status==='pending'?' style="background:rgba(251,191,36,0.06)"':''}>
     <td><span class="bid">${b.id}</span></td>
     <td>${(b.bunker||'')}</td>
-    <td style="white-space:nowrap">${fmtDate(b.date)}${b.blockId?` <span title="Part of a ${b.blockTotal}-day block" style="background:var(--accent-light);color:var(--accent);font-size:0.65rem;font-weight:700;padding:1px 5px;border-radius:3px;white-space:nowrap">🔗 ${b.blockIndex}/${b.blockTotal}</span>`:''}${phaseBadgeHtml(b.phase)}</td>
+    <td style="white-space:nowrap">${fmtDate(b.date)}${b.blockId?` <span title="Part of a ${b.blockTotal}-day block" style="background:var(--accent-light);color:var(--accent);font-size:0.65rem;font-weight:700;padding:1px 5px;border-radius:3px;white-space:nowrap">🔗 ${b.blockIndex}/${b.blockTotal}</span>`:''}${b.continuousRun?` <span class="cont-badge" title="Continuous run ${fmtDate(b.runStartDate)} ${b.runStartTime} to ${fmtDate(b.runEndDate)} ${b.runEndTime}">⏱ ${runHoursLabel(b)} run</span>`:''}${phaseBadgeHtml(b.phase)}${overlapBadgeHtml(b)}</td>
     <td>${b.start?fmt24(b.start):'—'}</td><td>${b.end?fmt24(b.end):'—'}</td>
     <td>${b.startMins!=null&&b.endMins!=null?fmt(b.endMins-b.startMins):'—'}</td>
     <td>${b.name||'—'}</td><td>${b.projectName||'—'}</td><td>${b.costCentre||'—'}</td><td>${b.org||'—'}</td>
@@ -2752,19 +2799,33 @@ window.toggleExternalOrgField = function() {
   document.getElementById('book-org-external-field').style.display = isExternal ? 'block' : 'none';
 }
 
+// Two range modes share the End Date field and the per-day phase list:
+//  - "multi": same start/end time every day (a block of separate days)
+//  - "continuous": ONE run, start time on the start date -> end time on the
+//    end date, stored as linked per-day pieces (00:00-24:00 in the middle).
+window.setRangeMode = function(which) {
+  const m = document.getElementById('book-multiday'), c = document.getElementById('book-continuous');
+  if (which === 'multi' && m.checked) c.checked = false;
+  if (which === 'continuous' && c.checked) m.checked = false;
+  toggleMultiDayFields();
+}
+
 window.toggleMultiDayFields = function() {
-  const on = document.getElementById('book-multiday').checked;
+  const cont = document.getElementById('book-continuous').checked;
+  const on = document.getElementById('book-multiday').checked || cont;
   document.getElementById('book-enddate-field').style.display = on ? 'block' : 'none';
   document.getElementById('book-date-label').textContent = on ? 'Start Date *' : 'Date *';
+  document.getElementById('book-start-label').textContent = cont ? 'Start Time on start date (24hr) *' : 'Start Time (24hr) *';
+  document.getElementById('book-end-label').textContent = cont ? 'End Time on end date (24hr) *' : 'End Time (24hr) *';
   document.getElementById('book-phase-list-field').style.display = on ? 'block' : 'none';
   if (on) {
     const start = document.getElementById('book-date').value || todayStr();
     if (!document.getElementById('book-enddate').value) document.getElementById('book-enddate').value = start;
   }
   renderPhaseDayList();
+  if (window.updateOverlapPreview) window.updateOverlapPreview();
 }
 
-// Builds one Setup/Run/Cooldown dropdown per day in the chosen date range.
 // Simple, day-level version: a whole calendar day is tagged as one phase —
 // it doesn't (yet) know about exact hours within a day, e.g. a run that
 // starts mid-afternoon and cooldown continuing into the next morning.
@@ -2773,7 +2834,8 @@ window.toggleMultiDayFields = function() {
 window.renderPhaseDayList = function() {
   const container = document.getElementById('book-phase-list');
   if (!container) return;
-  if (!document.getElementById('book-multiday').checked) { container.innerHTML = ''; return; }
+  const contMode = document.getElementById('book-continuous').checked;
+  if (!document.getElementById('book-multiday').checked && !contMode) { container.innerHTML = ''; return; }
 
   const start = document.getElementById('book-date').value;
   const end = document.getElementById('book-enddate').value;
@@ -2788,7 +2850,7 @@ window.renderPhaseDayList = function() {
   while (cur <= last && dateList.length < 14) { dateList.push(localDateStr(cur)); cur.setDate(cur.getDate() + 1); }
 
   container.innerHTML = dateList.map((d, i) => {
-    const defaultPhase = existing[d] || (i === dateList.length - 1 ? 'run' : 'setup');
+    const defaultPhase = existing[d] || (contMode || i === dateList.length - 1 ? 'run' : 'setup');
     return `<div style="display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:6px 10px">
       <span style="font-size:0.82rem;min-width:110px">${fmtDate(d)}</span>
       <select data-phase-date="${d}" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;background:var(--surface);color:var(--text)">
@@ -2800,8 +2862,92 @@ window.renderPhaseDayList = function() {
   }).join('');
 }
 
+// Total length of a continuous run (from the run start/end saved on each piece).
+function runTotalMins(b) {
+  const a = new Date(`${b.runStartDate}T${b.runStartTime}:00`), z = new Date(`${b.runEndDate}T${b.runEndTime}:00`);
+  return Math.round((z - a) / 60000);
+}
+function runHoursLabel(b) { return (runTotalMins(b) / 60).toFixed(1).replace(/\.0$/, '') + 'h'; }
+
+// ── OVERLAP ("runs alongside another booking") ────────────────
+// Bookings that overlap an existing one are only allowed when the requester
+// ticks the opt-in box. They are always saved as pending so an approver has
+// to sign off on the clash explicitly.
+// spans = [{date, sm, em}] — one per day the request covers.
+function findOverlaps(bunker, spans, excludeId) {
+  const out = [];
+  spans.forEach(sp => {
+    getBookingsForDay(bunker, sp.date).forEach(b => {
+      if (b.id === excludeId) return;
+      if (!(sp.em <= b.startMins || sp.sm >= b.endMins)) out.push(b);
+    });
+  });
+  return out;
+}
+
+// Turns the requested dates + times into one span per day. A continuous run
+// is cut at midnight: first day = start->24:00, middle days = whole day,
+// last day = 00:00->end. A run ending exactly at 00:00 drops the empty last day.
+function computeSpans(dateList, isContinuous, start, end) {
+  const sm = parseTime(start), em = parseTime(end);
+  return dateList.map((d, i) => {
+    if (!isContinuous) return { date: d, sm, em, start, end };
+    const s = i === 0 ? sm : 0;
+    const e = i === dateList.length - 1 ? em : 1440;
+    return { date: d, sm: s, em: e, start: minsToHHMM(s), end: minsToHHMM(e) };
+  }).filter(sp => sp.em > sp.sm);
+}
+
+// Dates the form currently covers (one date, or the multi-day range).
+function formDateList() {
+  const date = document.getElementById('book-date').value;
+  if (!date) return [];
+  const multi = !editBookingId && (document.getElementById('book-multiday').checked || document.getElementById('book-continuous').checked);
+  const endDate = multi ? document.getElementById('book-enddate').value : date;
+  if (!endDate || endDate < date) return [date];
+  const list = [];
+  let cur = new Date(date + 'T00:00:00');
+  const last = new Date(endDate + 'T00:00:00');
+  while (cur <= last && list.length <= 14) { list.push(localDateStr(cur)); cur.setDate(cur.getDate() + 1); }
+  return list;
+}
+
+function overlapTouchesRunPhase(overlaps) {
+  return overlaps.some(b => b.phase === 'run' || b.phase === 'cooldown');
+}
+
+window.updateOverlapPreview = function() {
+  const field = document.getElementById('book-overlap-field');
+  const panel = document.getElementById('book-overlap-panel');
+  const list = document.getElementById('book-overlap-list');
+  const tick = document.getElementById('book-overlap');
+  const bunker = document.getElementById('book-bunker').value;
+  const start = document.getElementById('book-start').value;
+  const end = document.getElementById('book-end').value;
+  const dates = formDateList();
+  const isCont = !editBookingId && document.getElementById('book-continuous').checked;
+  if (!start || !end || !dates.length || (isCont ? dates.length < 2 : parseTime(end) <= parseTime(start))) {
+    field.style.display = 'none'; tick.checked = false; return;
+  }
+  const overlaps = findOverlaps(bunker, computeSpans(dates, isCont, start, end), editBookingId);
+  if (!overlaps.length) { field.style.display = 'none'; tick.checked = false; return; }
+  const danger = overlapTouchesRunPhase(overlaps);
+  panel.classList.toggle('danger', danger);
+  list.innerHTML = `<div style="font-weight:600;margin-bottom:4px">⚠️ This overlaps ${overlaps.length} existing booking${overlaps.length>1?'s':''} on ${bunker}:</div>` +
+    overlaps.map(b => `<div class="ov-item">• ${fmtDate(b.date)} ${fmt24(b.start)}–${fmt24(b.end)} &middot; <strong>${b.projectName||'—'}</strong> (${b.name||'—'})${b.status==='pending'?' <em>(pending)</em>':''}${phaseBadgeHtml(b.phase)}</div>`).join('') +
+    (danger ? `<div class="ov-warn">🛑 One of these is on a Run or Cooldown day — nobody should be in the bunker then. Only tick the box if you have agreed this with the other team; the approver will be warned.</div>` : '');
+  field.style.display = 'block';
+}
+
+['book-bunker','book-date','book-enddate','book-start','book-end','book-multiday','book-continuous'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) { el.addEventListener('change', window.updateOverlapPreview); el.addEventListener('input', window.updateOverlapPreview); }
+});
+
 window.openBookingForm = function() {
   document.getElementById('booking-form-modal').classList.add('open');
+  document.getElementById('book-overlap').checked = false;
+  document.getElementById('book-overlap-field').style.display = 'none';
   // Past dates are allowed (for recording historical bookings), so no min-date restriction.
   const bookDateInput = document.getElementById('book-date');
   const viewDate = document.getElementById('booking-view-date').value;
@@ -2811,7 +2957,9 @@ window.openBookingForm = function() {
   document.getElementById('book-org-external').value = '';
   document.getElementById('book-org-external-field').style.display = 'none';
   document.getElementById('book-multiday').checked = false;
+  document.getElementById('book-continuous').checked = false;
   document.getElementById('book-multiday').closest('.form-field').style.display = 'flex';
+  document.getElementById('book-continuous-field').style.display = 'flex';
   document.getElementById('book-enddate').value = '';
   toggleMultiDayFields();
   document.getElementById('conflict-alert').classList.remove('show');
@@ -2840,6 +2988,7 @@ window.openEditBookingForm = function(id) {
   const b = allBookings[id];
   if (!b) return;
   if (!canManageBooking(b)) { toast('🚫 Only the person who booked this, or an approver, can edit it'); return; }
+  if (b.continuousRun) { toast('⏱ This is part of a continuous run — to change it, cancel the run and submit a new request'); return; }
   editBookingId = id;
   document.getElementById('booking-form-modal').classList.add('open');
   const bookDateInput = document.getElementById('book-date');
@@ -2865,19 +3014,27 @@ window.openEditBookingForm = function(id) {
   document.getElementById('book-purpose').value = b.purpose || '';
   document.getElementById('book-contact').value = b.contact || '';
   document.getElementById('book-multiday').checked = false;
+  document.getElementById('book-continuous').checked = false;
   document.getElementById('book-multiday').closest('.form-field').style.display = 'none';
+  document.getElementById('book-continuous-field').style.display = 'none';
   document.getElementById('book-enddate-field').style.display = 'none';
+  document.getElementById('book-phase-list-field').style.display = 'none';
+  document.getElementById('book-start-label').textContent = 'Start Time (24hr) *';
+  document.getElementById('book-end-label').textContent = 'End Time (24hr) *';
   document.getElementById('book-date-label').textContent = 'Date *';
   document.getElementById('booking-form-title').textContent = `✏️ Edit Booking — ${id}${b.blockId ? ` (Day ${b.blockIndex} of ${b.blockTotal})` : ''}`;
   document.getElementById('booking-form-submit-btn').textContent = 'Save Changes';
   document.getElementById('conflict-alert').classList.remove('show');
   document.getElementById('success-alert').classList.remove('show');
+  window.updateOverlapPreview();
+  if (b.runsAlongside) document.getElementById('book-overlap').checked = true;
 }
 
 window.checkAndBook = async function() {
   const bunker = document.getElementById('book-bunker').value;
   const date = document.getElementById('book-date').value;
-  const isMultiDay = !editBookingId && document.getElementById('book-multiday').checked;
+  const isContinuous = !editBookingId && document.getElementById('book-continuous').checked;
+  const isMultiDay = !editBookingId && (document.getElementById('book-multiday').checked || isContinuous);
   const endDate = isMultiDay ? document.getElementById('book-enddate').value : date;
   const start = document.getElementById('book-start').value;
   const end = document.getElementById('book-end').value;
@@ -2909,7 +3066,7 @@ window.checkAndBook = async function() {
     conflictEl.classList.add('show'); return;
   }
   const sm = parseTime(start), em = parseTime(end);
-  if (em <= sm) {
+  if (!isContinuous && em <= sm) {
     conflictEl.textContent = '⚠️ End time must be after start time.';
     conflictEl.classList.add('show'); return;
   }
@@ -2917,6 +3074,10 @@ window.checkAndBook = async function() {
   // Build the list of dates this request covers — just the one date
   // normally, or every day in the range for a multi-day block.
   let dateList = [date];
+  if (isContinuous && endDate <= date) {
+    conflictEl.textContent = '⚠️ A continuous run must end on a later date than it starts. For a same-day booking, untick the continuous option.';
+    conflictEl.classList.add('show'); return;
+  }
   if (isMultiDay) {
     if (endDate < date) {
       conflictEl.textContent = '⚠️ End date must be on or after the start date.';
@@ -2934,14 +3095,21 @@ window.checkAndBook = async function() {
 
   // Conflict check across EVERY day in the range before creating anything —
   // all-or-nothing, so a block never ends up only partially booked.
-  for (const d of dateList) {
-    const existingForDay = getBookingsForDay(bunker, d).filter(b => b.id !== editBookingId);
-    const conflict = existingForDay.find(b => !(em <= b.startMins || sm >= b.endMins));
-    if (conflict) {
-      conflictEl.innerHTML = `🚫 <strong>Time conflict on ${fmtDate(d)}!</strong> ${bunker} is already booked from <strong>${fmt24(conflict.start)}</strong> to <strong>${fmt24(conflict.end)}</strong> by <strong>${conflict.name}</strong> (${conflict.org}).<br><br>${dateList.length>1?'No days were booked \u2014 please choose a different time or adjust the date range.':'Please choose a different time slot.'}`;
-      conflictEl.classList.add('show'); return;
-    }
+  // Overlaps are only allowed when the requester ticked "Runs alongside
+  // another booking"; otherwise it is a hard block as before.
+  const spans = computeSpans(dateList, isContinuous, start, end);
+  if (isContinuous) dateList = spans.map(sp => sp.date); // drops an empty final day if the run ends at 00:00
+  const overlaps = findOverlaps(bunker, spans, editBookingId);
+  const allowOverlap = document.getElementById('book-overlap').checked;
+  if (overlaps.length && !allowOverlap) {
+    const conflict = overlaps[0];
+    conflictEl.innerHTML = `🚫 <strong>Time conflict on ${fmtDate(conflict.date)}!</strong> ${bunker} is already booked from <strong>${fmt24(conflict.start)}</strong> to <strong>${fmt24(conflict.end)}</strong> by <strong>${conflict.name}</strong> (${conflict.org}).<br><br>${dateList.length>1?'No days were booked — ':''}Choose a different time, or tick <strong>“Runs alongside another booking”</strong> below if both teams can work in the bunker together (an approver will need to sign off).`;
+    conflictEl.classList.add('show');
+    window.updateOverlapPreview();
+    return;
   }
+  const runsAlongside = overlaps.length > 0;
+  const overlapsRunPhase = runsAlongside && overlapTouchesRunPhase(overlaps);
 
   const isEdit = !!editBookingId;
   const blockId = (!isEdit && dateList.length > 1) ? ('BLK' + Date.now().toString(36).toUpperCase()) : null;
@@ -2953,15 +3121,24 @@ window.checkAndBook = async function() {
 
   for (let i = 0; i < dateList.length; i++) {
     const d = dateList[i];
+    const sp = spans[i];
     const id = isEdit ? editBookingId : genId();
     const prior = isEdit ? allBookings[id] : null;
+    // Overlaps that apply to THIS day only (a multi-day block overlaps different bookings on different days).
+    const dayOverlaps = overlaps.filter(o => o.date === d);
+    const dayRunsAlongside = dayOverlaps.length > 0;
+    // Editing an already-approved booking so that it now clashes with something
+    // new needs a fresh sign-off, so it drops back to pending.
+    const newClash = isEdit && prior && dayOverlaps.some(o => !(prior.overlapsWith || []).includes(o.id));
     const booking = {
-      id, bunker, date: d, start, end, startMins: sm, endMins: em, name, org, projectName, costCentre, purpose, contact,
-      status: prior ? prior.status : 'pending',
+      id, bunker, date: d, start: sp.start, end: sp.end, startMins: sp.sm, endMins: sp.em, name, org, projectName, costCentre, purpose, contact,
+      status: (newClash && prior.status === 'confirmed') ? 'pending' : (prior ? prior.status : 'pending'),
       bookedAt: prior ? prior.bookedAt : new Date().toISOString(),
       submittedByEmail: prior ? prior.submittedByEmail : currentUserEmail,
       ...(isEdit ? { editedAt: new Date().toISOString() } : {}),
+      ...(dayRunsAlongside ? { runsAlongside: true, overlapsWith: dayOverlaps.map(o => o.id), overlapsRunPhase: overlapTouchesRunPhase(dayOverlaps) } : {}),
       ...(blockId ? { blockId, blockIndex: i + 1, blockTotal: dateList.length } : {}),
+      ...(isContinuous ? { continuousRun: true, runStartDate: date, runStartTime: start, runEndDate: endDate, runEndTime: end } : {}),
       ...(phaseByDate[d] ? { phase: phaseByDate[d] } : {}),
     };
     allBookings[id] = booking;
@@ -2978,17 +3155,21 @@ window.checkAndBook = async function() {
   renderMonthly();
   renderBookingCalendar();
   if (document.getElementById('tab-allbookings').classList.contains('active')) renderAllBookingsTable();
-  if (!isEdit) notifyApproversOfNewBooking(createdBookings[0], createdBookings.length);
+  if (!isEdit) notifyApproversOfNewBooking(createdBookings[0], createdBookings.length, overlaps);
+  else if (createdBookings[0].status === 'pending' && createdBookings[0].runsAlongside && overlaps.length) notifyApproversOfNewBooking(createdBookings[0], 1, overlaps);
 
   const firstId = createdBookings[0].id;
   successEl.textContent = isEdit
     ? `✅ Booking updated! ID: ${firstId}. ${bunker} now reserved on ${fmtDate(date)} from ${fmt24(start)} to ${fmt24(end)}.`
-    : (dateList.length > 1
+    : (isContinuous
+      ? `⏳ Continuous run submitted! ${bunker} is held from ${fmtDate(date)} ${fmt24(start)} until ${fmtDate(endDate)} ${fmt24(end)} (${runHoursLabel(createdBookings[0])}), pending approval.`
+      : dateList.length > 1
       ? `⏳ Request submitted for ${dateList.length} days (${fmtDate(dateList[0])} \u2013 ${fmtDate(dateList[dateList.length-1])})! ${bunker} is held each day from ${fmt24(start)} to ${fmt24(end)}, pending approval.`
       : `⏳ Request submitted! ID: ${firstId}. ${bunker} is held for ${fmtDate(date)} from ${fmt24(start)} to ${fmt24(end)}, pending approval.`);
+  if (runsAlongside) successEl.textContent += ` \ud83d\udc65 Flagged as running alongside ${overlaps.length} other booking${overlaps.length>1?'s':''} \u2014 an approver must sign off on the overlap.`;
   successEl.classList.add('show');
   document.getElementById('booking-view-date').value = date;
-  toast(isEdit ? `✏️ Booking ${firstId} updated!` : (dateList.length > 1 ? `⏳ ${dateList.length}-day request submitted — awaiting approval` : `⏳ Request ${firstId} submitted — awaiting approval`));
+  toast(isEdit ? `✏️ Booking ${firstId} updated!` : (isContinuous ? '⏳ Continuous run submitted — awaiting approval' : dateList.length > 1 ? `⏳ ${dateList.length}-day request submitted — awaiting approval` : `⏳ Request ${firstId} submitted — awaiting approval`));
   setTimeout(() => closeBookingForm(), 3500);
 }
 
@@ -3416,7 +3597,7 @@ window.downloadPDF = function() {
     BUNKERS.forEach(rId => {
       const rd = dayRec[rId] || {};
       const slots = Object.entries(allBookings)
-        .filter(([id, b]) => b.bunker === rId && b.date === dateStr && b.status !== 'cancelled')
+        .filter(([id, b]) => b.bunker === rId && b.date === dateStr && blocksSlot(b.status))
         .map(([id, b]) => ({ id, ...b }));
 
       if (slots.length > 0) {
@@ -3522,7 +3703,7 @@ function listDatesInRange(from, to) {
 // app agrees on one number.
 function computeBunkerDayStats(rId, dateStr) {
   const slots = Object.entries(allBookings)
-    .filter(([id, b]) => b.bunker === rId && b.date === dateStr && b.status !== 'cancelled')
+    .filter(([id, b]) => b.bunker === rId && b.date === dateStr && blocksSlot(b.status))
     .map(([id, b]) => ({ id, ...b }));
   const rd = (allData[dateStr] || {})[rId] || {};
 
@@ -3533,16 +3714,24 @@ function computeBunkerDayStats(rId, dateStr) {
     return { booked: 0, used: 0, down: 0, reasons: rd.reasonNotRunning ? [rd.reasonNotRunning] : [], hasData: false };
   }
 
+  // Overlapping ("runs alongside") bookings share the same clock time, so the
+  // bunker's booked time is the UNION of the intervals, counted once.
   let booked = 0, used = 0;
+  const merged = [];
+  slots.map(sl => [sl.startMins || 0, sl.endMins || 0]).sort((a, b) => a[0] - b[0]).forEach(([s, e]) => {
+    if (merged.length && s <= merged[merged.length-1][1]) merged[merged.length-1][1] = Math.max(merged[merged.length-1][1], e);
+    else merged.push([s, e]);
+  });
+  merged.forEach(([s, e]) => { booked += e - s; });
   slots.forEach(slot => {
     const sm = slot.startMins || 0, em = slot.endMins || 0;
     const plannedMins = em - sm;
-    booked += plannedMins;
     const savedHrs = rd.slotActual && rd.slotActual[slot.id] != null ? parseFloat(rd.slotActual[slot.id]) : 0;
     let actualMins = Math.round((isNaN(savedHrs) ? 0 : savedHrs) * 60);
     actualMins = Math.min(Math.max(0, actualMins), plannedMins); // same clamp as Monthly Report
     used += actualMins;
   });
+  used = Math.min(used, booked); // alongside bookings can't make the bunker "used" more than it was booked
   const down = Math.max(0, booked - used); // shortfall between planned and actual
   return { booked, used, down, reasons: [], hasData: true };
 }
