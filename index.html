@@ -1753,7 +1753,15 @@ function localDateStr(d) {
   return `${y}-${m}-${day}`;
 }
 function todayStr() { return localDateStr(new Date()); }
-function genId() { return 'BK' + Date.now().toString(36).toUpperCase().slice(-6); }
+// Same ID format as before, but guaranteed unique even when several bookings
+// are created in the same millisecond (e.g. each day of a multi-day block).
+let _lastIdMs = 0;
+function genId() {
+  let t = Date.now();
+  if (t <= _lastIdMs) t = _lastIdMs + 1;
+  _lastIdMs = t;
+  return 'BK' + t.toString(36).toUpperCase().slice(-6);
+}
 function fmtDate(d) { if (!d) return '—'; const [y,m,dd] = d.split('-'); return `${dd} ${MONTHS_SHORT[parseInt(m)-1]} ${y}`; }
 function fmt24(t) {
   if (!t) return '—';
@@ -2937,7 +2945,7 @@ window.updateOverlapPreview = function() {
     overlaps.map(b => `<div class="ov-item">• ${fmtDate(b.date)} ${fmt24(b.start)}–${fmt24(b.end)} &middot; <strong>${b.projectName||'—'}</strong> (${b.name||'—'})${b.status==='pending'?' <em>(pending)</em>':''}${phaseBadgeHtml(b.phase)}</div>`).join('') +
     (danger ? `<div class="ov-warn">🛑 One of these is on a Run or Cooldown day — nobody should be in the bunker then. Only tick the box if you have agreed this with the other team; the approver will be warned.</div>` : '');
   field.style.display = 'block';
-}
+};
 
 ['book-bunker','book-date','book-enddate','book-start','book-end','book-multiday','book-continuous'].forEach(id => {
   const el = document.getElementById(id);
