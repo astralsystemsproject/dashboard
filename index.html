@@ -982,6 +982,7 @@ tr:hover td { background: var(--bg); }
           <option value="Science Team">Science Team</option>
           <option value="Engineering Team">Engineering Team</option>
           <option value="Projects & Operations">Projects &amp; Operations</option>
+          <option value="Medical Team">Medical Team</option>
           <option value="Other/External">Other / External</option>
         </select>
       </div>
@@ -1474,6 +1475,30 @@ const NOTIFY_EMAILS = [
   'alex@astralsystems.com',
 ];
 
+// ── TWO-STEP APPROVAL ─────────────────────────────────────────
+// A new booking is held as 'pending' and must pass two steps, in order:
+//   Step 1 - Alex confirms the bunker can be used.
+//   Step 2 - Han Ying approves the operators. Only then is it 'confirmed'.
+// Jiffin is listed on both steps as cover (e.g. if either person is away).
+// Barry and Tom can still see and manage bookings but no longer approve.
+// `notify` = who is emailed when that step is waiting on someone.
+// UI-level only, same caveat as isApprover() above.
+const APPROVAL_STEPS = {
+  1: { label: 'Bunker',    who: 'Alex',     approvers: ['alex@astralsystems.com', 'jiffin@astralsystems.com'],    notify: ['alex@astralsystems.com'] },
+  2: { label: 'Operators', who: 'Han Ying', approvers: ['han-ying@astralsystems.com', 'jiffin@astralsystems.com'], notify: ['han-ying@astralsystems.com'] },
+};
+// Bookings saved before this feature have no `stage`, so they start at step 1.
+function bookingStep(b) { return b && b.stage === 2 ? 2 : 1; }
+// Friendly name for emails: the step's regular approver by name, or "email (covering for X)".
+function whoActed(step) {
+  const st = APPROVAL_STEPS[step], e = (currentUserEmail || '').toLowerCase();
+  return e === st.approvers[0] ? st.who : `${e || 'someone'} (covering for ${st.who})`;
+}
+function canApproveStep(b) {
+  const e = (currentUserEmail || '').toLowerCase();
+  return !!e && APPROVAL_STEPS[bookingStep(b)].approvers.includes(e);
+}
+
 // Only the person who submitted a booking, or one of the 5 approvers, can
 // Edit / Cancel / Delete it — everyone else can see it but not touch it.
 // Same caveat as isApprover(): a UI convenience, not a Firebase Rules-level
@@ -1498,7 +1523,8 @@ function renderPendingApprovalBanner() {
   const el = document.getElementById('pending-approval-banner');
   if (!el) return;
   if (!isApprover()) { el.style.display = 'none'; return; }
-  const count = Object.values(allBookings).filter(b => b.status === 'pending').length;
+  // Only count requests waiting on THIS person's step.
+  const count = Object.values(allBookings).filter(b => b.status === 'pending' && canApproveStep(b)).length;
   if (count === 0) { el.style.display = 'none'; return; }
   el.textContent = `⏳ ${count} request${count === 1 ? '' : 's'} waiting on your approval — sorted to the top of the table below`;
   el.style.display = 'block';
@@ -1527,6 +1553,9 @@ function notifyApproversOfNewBooking(booking, dayCount = 1, overlaps = []) {
   const cont = !!booking.continuousRun;
   const dateLabel = cont ? `${fmtDate(booking.runStartDate)} ${fmt24(booking.runStartTime)} \u2192 ${fmtDate(booking.runEndDate)} ${fmt24(booking.runEndTime)} (continuous run)` : dayCount > 1 ? `${fmtDate(booking.date)} (first of ${dayCount} consecutive days)` : fmtDate(booking.date);
   const params = {
+    // Only matters if the EmailJS template's "To Email" is set to {{to_email}}; otherwise the
+    // fixed list in the template is used and this is ignored.
+    to_email: APPROVAL_STEPS[1].notify.join(', '),
     booking_id: booking.id + (dayCount > 1 ? ` (+${dayCount - 1} more day${dayCount > 2 ? 's' : ''} linked)` : ''),
     bunker: booking.bunker,
     date: dateLabel,
@@ -1642,6 +1671,58 @@ function notifyAdminsOfRemoval(booking, action) {
     .catch(e => console.error('EmailJS send failed for', booking.id, e));
 }
 
+// Date/time/ID wording shared by the approval-chain notices. One booking, a
+// multi-day block, or a continuous run all read naturally.
+function groupEmailFields(group) {
+  const b = group[0], last = group[group.length - 1];
+  return {
+    booking_id: b.id + (group.length > 1 ? ` (+${group.length - 1} more linked day${group.length > 2 ? 's' : ''})` : ''),
+    bunker: b.bunker,
+    date: b.continuousRun ? `${fmtDate(b.runStartDate)} \u2192 ${fmtDate(b.runEndDate)} (continuous run)` : group.length > 1 ? `${fmtDate(b.date)} \u2013 ${fmtDate(last.date)}` : fmtDate(b.date),
+    start_time: b.continuousRun ? fmt24(b.runStartTime) : fmt24(b.start),
+    end_time: b.continuousRun ? fmt24(b.runEndTime) : fmt24(b.end),
+    requester_name: b.name,
+    requester_org: b.org,
+  };
+}
+
+function sendNotice(params, label) {
+  if (!emailjsReady || !EMAILJS_TEMPLATE_REMOVED || EMAILJS_TEMPLATE_REMOVED.startsWith('PASTE_')) {
+    console.warn('EmailJS notice template not configured yet — skipping', label);
+    return;
+  }
+  emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_REMOVED, params)
+    .then(() => console.log(label, 'notification sent'))
+    .catch(e => console.error('EmailJS send failed for', label, e));
+}
+
+// Step 1 done -> ping whoever approves step 2 (reuses the notice template, so
+// no extra EmailJS template is needed).
+function notifyNextStep(group, doneBy) {
+  const dashboardUrl = location.origin + location.pathname;
+  sendNotice({
+    to_email: APPROVAL_STEPS[2].notify.join(', '),
+    notice_title: 'Step 2 of 2 \u2014 Operators approval needed',
+    notice_message: `${doneBy} has approved the bunker for this booking. Please open the Bunker Booking dashboard and approve the operators. This is the final step: once you approve, the booking is confirmed.`,
+    ...groupEmailFields(group),
+    calendar_link: dashboardUrl,
+  }, 'step-2 request');
+}
+
+// A rejection at either step -> tell the person who booked it, who rejected
+// it and at which step. Only sent if we have their email.
+function notifyBookerOfRejection(group, step, rejectedBy) {
+  const to = group[0].submittedByEmail;
+  if (!to) return;
+  sendNotice({
+    to_email: to,
+    notice_title: 'Booking Not Approved',
+    notice_message: `Your booking request was rejected at step ${step} of 2 (${APPROVAL_STEPS[step].label.toLowerCase()} check) by ${rejectedBy}. The time slot has been released. Please speak to them if you have questions, or submit a new request.`,
+    ...groupEmailFields(group),
+    calendar_link: '',
+  }, 'rejection');
+}
+
 // Sent to Alex & Han Ying whenever booking(s) get approved. Takes an array
 // so a whole multi-day block only sends ONE email (with one calendar link
 // per day) rather than a separate email per day.
@@ -1659,7 +1740,8 @@ function notifyCalendarInvite(approvedGroup) {
     .map(item => `${fmtDate(item.date)} (${fmt24(item.start)}\u2013${fmt24(item.end)}): ${buildOutlookCalendarLink(item)}`)
     .join('\n');
   const params = {
-    to_email: CALENDAR_NOTICE_EMAILS.join(', '),
+    // Final approval: the three calendar recipients AND the person who booked it, in ONE send.
+    to_email: [...new Set([...CALENDAR_NOTICE_EMAILS, (b.submittedByEmail || '').toLowerCase()].filter(Boolean))].join(', '),
     notice_title: approvedGroup.length > 1 ? `Booking Approved \u2014 ${approvedGroup.length} Days` : 'Booking Approved',
     notice_message: 'This booking has been approved and confirmed. Click a link below to add it to your Outlook calendar (one click, then Save):',
     booking_id: b.id + (approvedGroup.length > 1 ? ` (+${approvedGroup.length - 1} more linked day${approvedGroup.length > 2 ? 's' : ''})` : ''),
@@ -2694,10 +2776,10 @@ function buildBookingRow(b) {
     <td>${b.startMins!=null&&b.endMins!=null?fmt(b.endMins-b.startMins):'—'}</td>
     <td>${b.name||'—'}</td><td>${b.projectName||'—'}</td><td>${b.costCentre||'—'}</td><td>${b.org||'—'}</td>
     <td style="max-width:140px;font-size:0.78rem">${(b.purpose||'—').slice(0,60)}</td>
-    <td>${bookingStatusBadge(b.status)}</td>
+    <td>${bookingStatusBadge(b.status, b)}</td>
     <td style="white-space:nowrap;display:flex;gap:6px">
-      ${b.status==='pending' && isApprover() ? `
-        <button class="cancel-badge" style="background:var(--green-light);color:var(--green);border-color:rgba(52,211,153,0.35)" onclick="approveBooking('${b.id}')">Approve</button>
+      ${b.status==='pending' && canApproveStep(b) ? `
+        <button class="cancel-badge" style="background:var(--green-light);color:var(--green);border-color:rgba(52,211,153,0.35)" title="Step ${bookingStep(b)} of 2" onclick="approveBooking('${b.id}')">Approve ${APPROVAL_STEPS[bookingStep(b)].label.toLowerCase()}</button>
         <button class="cancel-badge" style="background:rgba(248,113,113,0.12);color:var(--red);border-color:rgba(248,113,113,0.35)" onclick="rejectBooking('${b.id}')">Reject</button>
       ` : ''}
       ${manageable ? `
@@ -2709,10 +2791,17 @@ function buildBookingRow(b) {
   </tr>`;
 }
 
-function bookingStatusBadge(status) {
+function bookingStatusBadge(status, b) {
   if (status === 'cancelled') return '<span style="color:var(--red);font-size:0.75rem;font-weight:600">Cancelled</span>';
-  if (status === 'rejected') return '<span style="color:var(--red);font-size:0.75rem;font-weight:600">Rejected</span>';
-  if (status === 'pending') return '<span style="background:var(--amber-light);color:var(--amber);font-size:0.7rem;font-weight:600;padding:2px 8px;border-radius:4px;display:inline-block">Pending Approval</span>';
+  if (status === 'rejected') {
+    const at = b && b.rejectedAtStep ? ` <span style="font-weight:400;color:var(--muted)">(step ${b.rejectedAtStep})</span>` : '';
+    return `<span style="color:var(--red);font-size:0.75rem;font-weight:600">Rejected</span>${at}`;
+  }
+  if (status === 'pending') {
+    const n = bookingStep(b), st = APPROVAL_STEPS[n];
+    const tip = n === 2 && b && b.stage1ApprovedBy ? `Step 1 (bunker) approved by ${b.stage1ApprovedBy}` : `Step ${n} of 2`;
+    return `<span title="${tip}" style="background:var(--amber-light);color:var(--amber);font-size:0.7rem;font-weight:600;padding:2px 8px;border-radius:4px;display:inline-block">\u23f3 Step ${n}/2 \u00b7 Awaiting ${st.who} (${st.label.toLowerCase()})</span>`;
+  }
   return '<span class="confirmed-badge">Confirmed</span>';
 }
 
@@ -3006,7 +3095,7 @@ window.openEditBookingForm = function(id) {
   document.getElementById('book-end').value = b.end || '';
   document.getElementById('book-name').value = b.name || '';
   document.getElementById('book-costcentre').value = b.costCentre || '';
-  const fixedOrgs = ['Science Team', 'Engineering Team', 'Projects & Operations'];
+  const fixedOrgs = ['Science Team', 'Engineering Team', 'Projects & Operations', 'Medical Team'];
   if (fixedOrgs.includes(b.org)) {
     document.getElementById('book-org-select').value = b.org;
     document.getElementById('book-org-external').value = '';
@@ -3122,6 +3211,7 @@ window.checkAndBook = async function() {
   const isEdit = !!editBookingId;
   const blockId = (!isEdit && dateList.length > 1) ? ('BLK' + Date.now().toString(36).toUpperCase()) : null;
   const createdBookings = [];
+  let resetForReapproval = false;
   const phaseByDate = {};
   if (isMultiDay) {
     document.querySelectorAll('#book-phase-list select[data-phase-date]').forEach(sel => { phaseByDate[sel.dataset.phaseDate] = sel.value; });
@@ -3138,9 +3228,17 @@ window.checkAndBook = async function() {
     // Editing an already-approved booking so that it now clashes with something
     // new needs a fresh sign-off, so it drops back to pending.
     const newClash = isEdit && prior && dayOverlaps.some(o => !(prior.overlapsWith || []).includes(o.id));
+    // An edit sends the booking back to step 1 if it was already approved and now clashes with
+    // something new, or if its bunker/date/time changed while it was waiting at step 2.
+    const timeChanged = !!prior && (prior.bunker !== bunker || prior.date !== d || prior.start !== sp.start || prior.end !== sp.end);
+    const backToStart = !!prior && ((newClash && prior.status === 'confirmed') || (prior.status === 'pending' && bookingStep(prior) === 2 && timeChanged));
+    if (backToStart) resetForReapproval = true;
     const booking = {
       id, bunker, date: d, start: sp.start, end: sp.end, startMins: sp.sm, endMins: sp.em, name, org, projectName, costCentre, purpose, contact,
       status: (newClash && prior.status === 'confirmed') ? 'pending' : (prior ? prior.status : 'pending'),
+      stage: backToStart ? 1 : (prior ? (prior.stage || 1) : 1),
+      // keep the approval trail on edits (it used to be dropped); a reset clears it
+      ...(prior && !backToStart ? Object.fromEntries(['approvedBy','approvedAt','stage1ApprovedBy','stage1ApprovedAt'].filter(k => prior[k]).map(k => [k, prior[k]])) : {}),
       bookedAt: prior ? prior.bookedAt : new Date().toISOString(),
       submittedByEmail: prior ? prior.submittedByEmail : currentUserEmail,
       ...(isEdit ? { editedAt: new Date().toISOString() } : {}),
@@ -3164,7 +3262,7 @@ window.checkAndBook = async function() {
   renderBookingCalendar();
   if (document.getElementById('tab-allbookings').classList.contains('active')) renderAllBookingsTable();
   if (!isEdit) notifyApproversOfNewBooking(createdBookings[0], createdBookings.length, overlaps);
-  else if (createdBookings[0].status === 'pending' && createdBookings[0].runsAlongside && overlaps.length) notifyApproversOfNewBooking(createdBookings[0], 1, overlaps);
+  else if (resetForReapproval) notifyApproversOfNewBooking(createdBookings[0], 1, overlaps);
 
   const firstId = createdBookings[0].id;
   successEl.textContent = isEdit
@@ -3218,13 +3316,27 @@ window.confirmCancel = async function() {
 // rest of a multi-day block — used to offer a one-click "whole block" option.
 function findBlockSiblings(booking) {
   if (!booking.blockId) return [];
-  return Object.values(allBookings).filter(b => b.blockId === booking.blockId && b.id !== booking.id && b.status === 'pending');
+  // Same step only, so approving step 1 of a block never skips a sibling that is already at step 2.
+  return Object.values(allBookings).filter(b => b.blockId === booking.blockId && b.id !== booking.id && b.status === 'pending' && bookingStep(b) === bookingStep(booking));
+}
+
+// Step 1 approved: stays pending (slot still held) but moves on to step 2.
+async function applyStageOneApproval(b) {
+  b.stage = 2;
+  b.stage1ApprovedBy = currentUserEmail;
+  b.stage1ApprovedAt = new Date().toISOString();
+  persistLocalBookings();
+  if (db) {
+    try { await set(ref(db, `bookings/${b.id}`), b); }
+    catch (e) { console.error('Firebase sync failed, kept locally', e); toast('⚠️ Approved on this device — sync to server failed'); }
+  }
 }
 
 async function applyBookingDecision(b, decision) {
+  const stepAtDecision = bookingStep(b);
   b.status = decision;
-  if (decision === 'confirmed') { b.approvedBy = currentUserEmail; b.approvedAt = new Date().toISOString(); }
-  else { b.rejectedBy = currentUserEmail; b.rejectedAt = new Date().toISOString(); }
+  if (decision === 'confirmed') { b.stage = 2; b.approvedBy = currentUserEmail; b.approvedAt = new Date().toISOString(); }
+  else { b.rejectedBy = currentUserEmail; b.rejectedAt = new Date().toISOString(); b.rejectedAtStep = stepAtDecision; }
   persistLocalBookings();
   if (db) {
     try { await set(ref(db, `bookings/${b.id}`), b); }
@@ -3233,34 +3345,47 @@ async function applyBookingDecision(b, decision) {
 }
 
 window.approveBooking = async function(id) {
-  if (!isApprover()) { toast('🚫 Only Alex, Han Ying, Jiffin, Barry, or Tom can approve requests'); return; }
   const b = allBookings[id];
   if (!b) return;
+  if (b.status !== 'pending') { toast('This request is no longer pending'); refreshBookingView(); return; }
+  const step = bookingStep(b), st = APPROVAL_STEPS[step];
+  if (!canApproveStep(b)) { toast(`🚫 Step ${step} (${st.label.toLowerCase()}) needs ${st.who} — or Jiffin as cover`); return; }
   const siblings = findBlockSiblings(b);
   let group = [b];
   if (siblings.length > 0) {
-    const doAll = confirm(`This is part of a ${b.blockTotal}-day block (${fmtDate(b.date)} onward). Approve all ${b.blockTotal} days?\n\nOK = approve the whole block. Cancel = approve just ${fmtDate(b.date)}.`);
+    const doAll = confirm(`This is part of a ${b.blockTotal}-day block (${fmtDate(b.date)} onward). Approve the ${st.label.toLowerCase()} step for all ${siblings.length + 1} days?\n\nOK = approve the whole block. Cancel = approve just ${fmtDate(b.date)}.`);
     if (doAll) group = [b, ...siblings];
   }
-  for (const item of group) await applyBookingDecision(item, 'confirmed');
+  if (step === 1) {
+    for (const item of group) await applyStageOneApproval(item);
+  } else {
+    for (const item of group) await applyBookingDecision(item, 'confirmed');
+  }
   refreshBookingView();
   if (currentDate) renderCards();
   renderMonthly();
   renderBookingCalendar();
   if (document.getElementById('tab-allbookings').classList.contains('active')) renderAllBookingsTable();
-  notifyRequesterOfDecision(b, 'confirmed', group.length);
-  notifyCalendarInvite(group);
-  toast(group.length > 1 ? `✅ ${group.length}-day block approved` : `✅ Booking ${id} approved`);
+  if (step === 1) {
+    notifyNextStep(group, whoActed(step));
+    toast(group.length > 1 ? `✅ Step 1 done for ${group.length} days — ${APPROVAL_STEPS[2].who} asked to approve the operators` : `✅ Step 1 done — ${APPROVAL_STEPS[2].who} asked to approve the operators`);
+  } else {
+    notifyRequesterOfDecision(b, 'confirmed', group.length);
+    notifyCalendarInvite(group);
+    toast(group.length > 1 ? `✅ ${group.length}-day block confirmed` : `✅ Booking ${id} confirmed`);
+  }
 }
 
 window.rejectBooking = async function(id) {
-  if (!isApprover()) { toast('🚫 Only Alex, Han Ying, Jiffin, Barry, or Tom can reject requests'); return; }
   const b = allBookings[id];
   if (!b) return;
+  if (b.status !== 'pending') { toast('This request is no longer pending'); refreshBookingView(); return; }
+  const step = bookingStep(b), st = APPROVAL_STEPS[step];
+  if (!canApproveStep(b)) { toast(`🚫 Step ${step} (${st.label.toLowerCase()}) needs ${st.who} — or Jiffin as cover`); return; }
   const siblings = findBlockSiblings(b);
   let group = [b];
   if (siblings.length > 0) {
-    const doAll = confirm(`This is part of a ${b.blockTotal}-day block (${fmtDate(b.date)} onward). Reject all ${b.blockTotal} days?\n\nOK = reject the whole block. Cancel = reject just ${fmtDate(b.date)}.`);
+    const doAll = confirm(`This is part of a ${b.blockTotal}-day block (${fmtDate(b.date)} onward). Reject all ${siblings.length + 1} days?\n\nOK = reject the whole block. Cancel = reject just ${fmtDate(b.date)}.`);
     if (doAll) group = [b, ...siblings];
   }
   for (const item of group) await applyBookingDecision(item, 'rejected');
@@ -3270,6 +3395,7 @@ window.rejectBooking = async function(id) {
   renderBookingCalendar();
   if (document.getElementById('tab-allbookings').classList.contains('active')) renderAllBookingsTable();
   notifyRequesterOfDecision(b, 'rejected', group.length);
+  notifyBookerOfRejection(group, step, whoActed(step));
   toast(group.length > 1 ? `${group.length}-day block rejected — slots are available again` : `Booking ${id} rejected — slot is available again`);
 }
 
