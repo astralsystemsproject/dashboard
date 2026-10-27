@@ -198,6 +198,12 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; }
 .diag-note { background: rgba(20,184,166,0.12); border: 1px solid rgba(20,184,166,0.45); border-radius: 8px; padding: 10px 14px; font-size: 0.82rem; line-height: 1.5; color: var(--text); }
 .diag-day-item { border: 1px solid var(--border); border-left: 4px solid #14b8a6; border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; background: var(--surface); font-size: 0.85rem; line-height: 1.55; }
 .diag-day-item ul { margin: 6px 0 6px 18px; padding: 0; }
+.mon-chip { background: #86306e; border-color: #6b2558; }
+.cal-dot-mon { background: rgba(190,24,93,0.15); border: 2px solid #be185d; }
+.diag-day-item.mon { border-left-color: #be185d; }
+.diag-tabs { display: flex; gap: 6px; margin: 4px 0 12px; }
+.diag-tab { flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--muted); font-size: 0.85rem; font-weight: 600; cursor: pointer; font-family: inherit; }
+.diag-tab.active { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
 .diag-ok { padding: 10px 14px; border-radius: 8px; background: var(--green-light); color: var(--green); font-size: 0.85rem; font-weight: 600; }
 .diag-check { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 5px; font-size: 0.82rem; cursor: pointer; background: var(--bg); }
 .diag-check input { width: auto !important; flex-shrink: 0; }
@@ -931,8 +937,12 @@ tr:hover td { background: var(--bg); }
 <div class="modal-overlay" id="diag-modal">
   <div class="modal modal-lg">
     <button class="modal-close-x" onclick="closeDiagModal()" aria-label="Close">&times;</button>
-    <h2 id="diag-modal-title">🔧 Log Diagnostics Outage</h2>
-    <p>Shows on the Booking Calendar and on the day details so people know which diagnostics are unavailable before they book. Applies to the whole facility.</p>
+    <h2 id="diag-modal-title">🛠️ Log Outage</h2>
+    <div class="diag-tabs" id="diag-tabs">
+      <button type="button" class="diag-tab active" data-kind="diagnostics" onclick="setDiagKind('diagnostics')">🔧 Diagnostics</button>
+      <button type="button" class="diag-tab" data-kind="monitoring" onclick="setDiagKind('monitoring')">📡 Monitoring</button>
+    </div>
+    <p id="diag-modal-intro">Shows on the Booking Calendar and on the day details so people know what is unavailable before they book. Applies to the whole facility.</p>
     <div class="conflict-alert" id="diag-alert"></div>
     <div class="success-alert" id="diag-success"></div>
     <div class="form-grid">
@@ -957,7 +967,7 @@ tr:hover td { background: var(--bg); }
         <input type="date" id="diag-end">
       </div>
       <div class="form-field full">
-        <label>Which diagnostics are unavailable? *</label>
+        <label id="diag-checklist-label">Which diagnostics are unavailable? *</label>
         <div id="diag-checklist"></div>
         <div style="display:flex;gap:8px;margin-top:6px">
           <input type="text" id="diag-new-name" placeholder="Add a diagnostic to the list (e.g. new detector name)" autocomplete="off">
@@ -1165,7 +1175,7 @@ tr:hover td { background: var(--bg); }
         <button class="btn btn-sm" onclick="calNextMonth()">›</button>
         <button class="btn btn-sm btn-primary" onclick="calToday()">Today</button>
         <button class="btn btn-sm" onclick="openVisitorModal()">👤 Add Visitor</button>
-        <button class="btn btn-sm" id="diag-manage-btn" style="display:none" onclick="openDiagModal()">🔧 Log Diagnostics Outage</button>
+        <button class="btn btn-sm" id="diag-manage-btn" style="display:none" onclick="openDiagModal()">🛠️ Log Outage</button>
         <button class="btn btn-sm" onclick="toggleCalFullscreen()">⛶ Full Screen</button>
       </div>
     </div>
@@ -1182,6 +1192,7 @@ tr:hover td { background: var(--bg); }
       <span class="cal-legend-item"><span class="cal-dot cal-dot-amber"></span> Pending Approval</span>
       <span class="cal-legend-item"><span class="cal-dot cal-dot-purple"></span> 👤 Visitor</span>
       <span class="cal-legend-item"><span class="cal-dot cal-dot-teal"></span> 🔧 Diagnostics unavailable</span>
+      <span class="cal-legend-item"><span class="cal-dot cal-dot-mon"></span> 📡 Monitoring unavailable</span>
     </div>
     <div class="cal-weekdays">
       <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
@@ -1195,6 +1206,7 @@ tr:hover td { background: var(--bg); }
         <span class="cal-legend-item"><span class="cal-dot cal-dot-red"></span> Booked</span>
         <span class="cal-legend-item"><span class="cal-dot cal-dot-amber"></span> Pending Approval</span>
         <span class="cal-legend-item"><span class="cal-dot cal-dot-teal"></span> 🔧 Diagnostics unavailable</span>
+        <span class="cal-legend-item"><span class="cal-dot cal-dot-mon"></span> 📡 Monitoring unavailable</span>
       </div>
       <div class="grid-table-wrap">
         <table class="grid-table">
@@ -1223,6 +1235,10 @@ tr:hover td { background: var(--bg); }
     <div class="bookings-card" id="diag-day-card" style="margin-top:1rem;box-shadow:none;border-style:dashed">
       <h4>🔧 Diagnostics availability — <span id="diag-day-label">—</span></h4>
       <div id="diag-day-body"><div class="diag-ok">✅ All diagnostics are available.</div></div>
+    </div>
+    <div class="bookings-card" id="mon-day-card" style="margin-top:1rem;box-shadow:none;border-style:dashed">
+      <h4>📡 Monitoring availability — <span id="mon-day-label">—</span></h4>
+      <div id="mon-day-body"><div class="diag-ok">✅ All monitoring devices are available.</div></div>
     </div>
   </div>
 
@@ -1838,6 +1854,7 @@ let allFeedback = {};
 let allVisitors = {};
 let allDiagOutages = {};
 let allDiagList = {};
+let allMonList = {};
 
 // ── LOCAL PERSISTENCE (always-on baseline) ─────────────────────
 // Firebase requires a live connection to persist anything — if the DB
@@ -1852,6 +1869,7 @@ const LS_FEEDBACK_KEY = 'bunker_local_feedback';
 const LS_VISITORS_KEY = 'bunker_local_visitors';
 const LS_DIAG_OUT_KEY = 'bunker_local_diag_outages';
 const LS_DIAG_LIST_KEY = 'bunker_local_diag_list';
+const LS_MON_LIST_KEY = 'bunker_local_mon_list';
 function persistLocalData() {
   try { localStorage.setItem(LS_DATA_KEY, JSON.stringify(allData)); } catch (e) { console.error('Local save (bunker_data) failed', e); }
 }
@@ -1874,7 +1892,7 @@ function loadLocalFeedback() {
   try { const raw = localStorage.getItem(LS_FEEDBACK_KEY); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
 }
 function persistLocalDiag() {
-  try { localStorage.setItem(LS_DIAG_OUT_KEY, JSON.stringify(allDiagOutages)); localStorage.setItem(LS_DIAG_LIST_KEY, JSON.stringify(allDiagList)); } catch (e) { console.error('Local save (diagnostics) failed', e); }
+  try { localStorage.setItem(LS_DIAG_OUT_KEY, JSON.stringify(allDiagOutages)); localStorage.setItem(LS_DIAG_LIST_KEY, JSON.stringify(allDiagList)); localStorage.setItem(LS_MON_LIST_KEY, JSON.stringify(allMonList)); } catch (e) { console.error('Local save (diagnostics) failed', e); }
 }
 function loadLocalDiag(key) {
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
@@ -2007,6 +2025,11 @@ function initFirebase(cfg) {
       persistLocalDiag();
       if (document.getElementById('diag-modal').classList.contains('open')) renderDiagChecklist();
     }, err => console.warn('diagnostics_list not readable', err && err.message));
+    onValue(ref(db, 'monitoring_list'), snap => {
+      allMonList = snap.val() || {};
+      persistLocalDiag();
+      if (document.getElementById('diag-modal').classList.contains('open')) renderDiagChecklist();
+    }, err => console.warn('monitoring_list not readable', err && err.message));
     return true;
   } catch(e) {
     document.getElementById('conn-dot').className = 'conn-dot error';
@@ -2083,10 +2106,8 @@ function renderBookingCalendar() {
       `<div class="cal-event" style="border-left-color:${BUNKER_CHART_COLORS[b.bunker] || 'var(--accent)'}" title="${b.name} · ${b.org || ''}">${phaseDotHtml(b.phase)}${b.status==='pending'?'⏳ ':''}${b.blockId?'🔗 ':''}${b.runsAlongside?'👥 ':''}${b.bunker} ${fmt24(b.start)} · ${b.projectName || b.name}${phaseBadgeHtml(b.phase)}</div>`
     ).join('');
     if (bookings.length > 3) eventsHtml += `<div class="cal-event-more">+${bookings.length - 3} more</div>`;
-    // Diagnostics that are out go FIRST (facility-wide, so they apply whichever bunker is filtered).
-    eventsHtml = getOutagesForDate(c.dateStr).map(o =>
-      `<div class="diag-chip" title="${escHtml((o.reason || '') + ' \u2014 ' + outageDiagnostics(o).join('; '))}">\ud83d\udd27 ${escHtml(o.label || 'Diagnostics out')}</div>`
-    ).join('') + eventsHtml;
+    // Outages (diagnostics / monitoring) go FIRST (facility-wide, so they apply whichever bunker is filtered).
+    eventsHtml = getOutagesForDate(c.dateStr).map(outageChipHtml).join('') + eventsHtml;
 
     const visitors = getVisitorsForDate(c.dateStr);
     eventsHtml += visitors.map(v =>
@@ -2179,17 +2200,21 @@ function renderBookingGrid() {
     }
     rows += `<tr><td class="grid-bunker-cell">${bunker}</td>${cells}</tr>`;
   });
-  // First row: facility-wide diagnostics outages (one thin cell per date).
-  let diagCells = '';
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const outs = getOutagesForDate(dateStr);
-    const names = [...new Set(outs.flatMap(outageDiagnostics))];
-    diagCells += outs.length
-      ? `<td class="grid-diag-cell ${dateStr === today ? 'grid-col-today' : ''}"><div class="diag-chip" title="${escHtml(outs.map(o => (o.label || '') + ': ' + outageDiagnostics(o).join('; ')).join(' | '))}">\ud83d\udd27 ${names.length}</div></td>`
-      : `<td class="grid-diag-cell ${dateStr === today ? 'grid-col-today' : ''}"></td>`;
-  }
-  rows = `<tr><td class="grid-bunker-cell">\ud83d\udd27 Diagnostics</td>${diagCells}</tr>` + rows;
+  // Top rows: facility-wide outages. Diagnostics always; Monitoring only when this month has one.
+  const outageRow = (kind) => {
+    let cells = '';
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const outs = getOutagesForDate(dateStr, kind);
+      const names = [...new Set(outs.flatMap(outageDiagnostics))];
+      cells += outs.length
+        ? `<td class="grid-diag-cell ${dateStr === today ? 'grid-col-today' : ''}"><div class="diag-chip ${OUTAGE_KINDS[kind].chipClass}" title="${escHtml(outs.map(o => (o.label || '') + ': ' + outageDiagnostics(o).join('; ')).join(' | '))}">${OUTAGE_KINDS[kind].icon} ${names.length}</div></td>`
+        : `<td class="grid-diag-cell ${dateStr === today ? 'grid-col-today' : ''}"></td>`;
+    }
+    return `<tr><td class="grid-bunker-cell">${OUTAGE_KINDS[kind].icon} ${OUTAGE_KINDS[kind].name}</td>${cells}</tr>`;
+  };
+  const monthHasMonitoring = Object.values(allDiagOutages || {}).some(o => outageKind(o) === 'monitoring' && o.startDate && o.startDate.slice(0, 7) <= `${calYear}-${String(calMonth + 1).padStart(2, '0')}` && (o.endDate || o.startDate).slice(0, 7) >= `${calYear}-${String(calMonth + 1).padStart(2, '0')}`);
+  rows = outageRow('diagnostics') + (monthHasMonitoring ? outageRow('monitoring') : '') + rows;
   body.innerHTML = rows;
 }
 
@@ -3727,12 +3752,13 @@ window.deleteVisitor = async function(id) {
   toast('Visitor entry removed');
 }
 
-// ── DIAGNOSTICS AVAILABILITY (facility-wide) ──────────────────
-// Shows which diagnostics are out (e.g. for external calibration) on the
-// Booking Calendar, in the day details, and as a heads-up on the booking form.
-// Only the people below can add/edit/remove outages; everyone else just sees
-// them. UI-level only, same caveat as isApprover() — real enforcement needs
-// Firebase Security Rules on /diagnostics_outages and /diagnostics_list.
+// ── OUTAGES: DIAGNOSTICS + MONITORING (facility-wide) ─────────
+// Shows which diagnostics / monitoring devices are out (e.g. external
+// calibration) on the Booking Calendar, in the day details, and as a heads-up
+// on the booking form. Both kinds share one data path (/diagnostics_outages,
+// told apart by `kind`; older entries without a kind are diagnostics) but each
+// has its own master list. Only the people below can add/edit/remove; everyone
+// else just sees them. UI-level only, same caveat as isApprover().
 const DIAGNOSTICS_EDITORS = [
   'jonathan@astralsystems.com',
   'han-ying@astralsystems.com',
@@ -3745,60 +3771,79 @@ const DEFAULT_DIAGNOSTICS = [
   'B10 PMT – neutron counters (D-D)',
   'x2 SiPM proton recoil fast neutron counters (D-T)',
 ];
+const OUTAGE_KINDS = {
+  diagnostics: { icon: '🔧', name: 'Diagnostics', things: 'diagnostics', allOk: 'All diagnostics are available.', defaultLabel: 'External calibrations', defaultContact: DEFAULT_DIAG_CONTACT, defaults: DEFAULT_DIAGNOSTICS, listPath: 'diagnostics_list', chipClass: '', labelPh: 'e.g. External calibrations', reasonPh: 'e.g. Out for external calibration at the NILE facility', addPh: 'Add a diagnostic to the list (e.g. new detector name)', checklistLabel: 'Which diagnostics are unavailable? *', title: 'Log Diagnostics Outage' },
+  monitoring:  { icon: '📡', name: 'Monitoring',  things: 'monitoring devices', allOk: 'All monitoring devices are available.', defaultLabel: 'Monitoring outage', defaultContact: '', defaults: [], listPath: 'monitoring_list', chipClass: 'mon-chip', labelPh: 'e.g. Monitoring outage', reasonPh: 'e.g. Offline for maintenance', addPh: 'Add a monitoring device to the list', checklistLabel: 'Which monitoring devices are unavailable? *', title: 'Log Monitoring Outage' },
+};
 let editDiagId = null;
+let diagKind = 'diagnostics';
 
 function canEditDiagnostics() { return DIAGNOSTICS_EDITORS.includes((currentUserEmail || '').toLowerCase()); }
 function escHtml(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); }
 function addDaysStr(dateStr, n) { const d = new Date(dateStr + 'T00:00:00'); d.setDate(d.getDate() + n); return localDateStr(d); }
 function outageDiagnostics(o) { return Object.values(o.diagnostics || []); }
+function outageKind(o) { return o && o.kind === 'monitoring' ? 'monitoring' : 'diagnostics'; }
+function listFor(kind) { return kind === 'monitoring' ? allMonList : allDiagList; }
+function setListFor(kind, v) { if (kind === 'monitoring') allMonList = v; else allDiagList = v; }
 
-// The master list: what's saved in the database, or the built-in defaults until someone edits it.
-function getDiagnosticsList() {
-  const saved = Object.values(allDiagList || {}).filter(x => x && x.name).sort((a, b) => (a.order || 0) - (b.order || 0) || String(a.name).localeCompare(String(b.name)));
+// The master list for a kind: what's saved in the database, or the built-in defaults until someone edits it.
+function getDiagnosticsList(kind = 'diagnostics') {
+  const saved = Object.values(listFor(kind) || {}).filter(x => x && x.name).sort((a, b) => (a.order || 0) - (b.order || 0) || String(a.name).localeCompare(String(b.name)));
   if (saved.length) return saved;
-  return DEFAULT_DIAGNOSTICS.map((name, i) => ({ id: 'default-' + i, name, order: i, isDefault: true }));
+  return OUTAGE_KINDS[kind].defaults.map((name, i) => ({ id: 'default-' + i, name, order: i, isDefault: true }));
 }
-async function ensureDiagListSeeded() {
-  if (Object.keys(allDiagList || {}).length) return;
+async function ensureDiagListSeeded(kind = 'diagnostics') {
+  const defaults = OUTAGE_KINDS[kind].defaults;
+  if (!defaults.length || Object.keys(listFor(kind) || {}).length) return;
   const seeded = {};
-  DEFAULT_DIAGNOSTICS.forEach((name, i) => { const id = 'DGN-d' + i; seeded[id] = { id, name, order: i, addedBy: 'default' }; });
-  allDiagList = seeded;
+  defaults.forEach((name, i) => { const id = (kind === 'monitoring' ? 'MON-d' : 'DGN-d') + i; seeded[id] = { id, name, order: i, addedBy: 'default' }; });
+  setListFor(kind, seeded);
   persistLocalDiag();
   if (db) {
-    try { for (const it of Object.values(seeded)) await set(ref(db, `diagnostics_list/${it.id}`), it); }
-    catch (e) { console.error('Diagnostics list seed failed', e); }
+    try { for (const it of Object.values(seeded)) await set(ref(db, `${OUTAGE_KINDS[kind].listPath}/${it.id}`), it); }
+    catch (e) { console.error('List seed failed', e); }
   }
 }
 
-function getOutagesForDate(dateStr) {
+// kind omitted = every kind
+function getOutagesForDate(dateStr, kind) {
   return Object.values(allDiagOutages || {})
-    .filter(o => o && o.startDate && o.startDate <= dateStr && (o.endDate || o.startDate) >= dateStr)
+    .filter(o => o && o.startDate && o.startDate <= dateStr && (o.endDate || o.startDate) >= dateStr && (!kind || outageKind(o) === kind))
     .sort((a, b) => a.startDate.localeCompare(b.startDate));
 }
 
-// Day details under the calendar: what's out, why, for how long, who to ask.
-function renderDiagnosticsDay(date) {
-  const label = document.getElementById('diag-day-label');
-  const body = document.getElementById('diag-day-body');
+function outageChipHtml(o) {
+  const k = OUTAGE_KINDS[outageKind(o)];
+  return `<div class="diag-chip ${k.chipClass}" title="${escHtml((o.reason || '') + ' — ' + outageDiagnostics(o).join('; '))}">${k.icon} ${escHtml(o.label || (k.name + ' out'))}</div>`;
+}
+
+// Day details under the calendar (one card per kind): what's out, why, for
+// how long, who to ask.
+function renderOutageCard(kind, date) {
+  const prefix = kind === 'monitoring' ? 'mon' : 'diag';
+  const label = document.getElementById(prefix + '-day-label');
+  const body = document.getElementById(prefix + '-day-body');
   if (!label || !body) return;
+  const K = OUTAGE_KINDS[kind];
   label.textContent = fmtDate(date);
-  const outs = getOutagesForDate(date);
-  if (!outs.length) { body.innerHTML = '<div class="diag-ok">✅ All diagnostics are available.</div>'; return; }
+  const outs = getOutagesForDate(date, kind);
+  if (!outs.length) { body.innerHTML = `<div class="diag-ok">✅ ${K.allOk}</div>`; return; }
   const editor = canEditDiagnostics();
   body.innerHTML = outs.map(o => {
     const end = o.endDate || o.startDate;
     const range = o.startDate === end ? fmtDate(o.startDate) : `${fmtDate(o.startDate)} – ${fmtDate(end)}`;
-    return `<div class="diag-day-item">
-      <div><strong>${escHtml(o.label || 'Diagnostics unavailable')}</strong></div>
+    return `<div class="diag-day-item ${kind === 'monitoring' ? 'mon' : ''}">
+      <div><strong>${escHtml(o.label || (K.name + ' unavailable'))}</strong></div>
       <div><strong>Reason:</strong> ${escHtml(o.reason)}</div>
-      <div>These diagnostics will be unavailable <strong>${range}</strong>, and are expected back on <strong>${fmtDate(addDaysStr(end, 1))}</strong>. Please contact ${escHtml(o.contact || DEFAULT_DIAG_CONTACT)} if you have any questions.</div>
+      <div>These ${K.things} will be unavailable <strong>${range}</strong>, and are expected back on <strong>${fmtDate(addDaysStr(end, 1))}</strong>. Please contact ${escHtml(o.contact || DEFAULT_DIAG_CONTACT)} if you have any questions.</div>
       <ul>${outageDiagnostics(o).map(n => `<li>${escHtml(n)}</li>`).join('')}</ul>
       ${editor ? `<div style="display:flex;gap:6px"><button class="cancel-badge" style="background:var(--accent-light);color:var(--accent);border-color:rgba(59,130,246,0.35)" onclick="openDiagModal('${o.id}')">Edit</button><button class="cancel-badge" onclick="removeDiagOutage('${o.id}', this)">Remove</button></div>` : ''}
     </div>`;
   }).join('');
 }
+function renderDiagnosticsDay(date) { renderOutageCard('diagnostics', date); renderOutageCard('monitoring', date); }
 
-// Heads-up on the booking form when the chosen date(s) have diagnostics out.
+// Heads-up on the booking form when the chosen date(s) have anything out.
 // Information only: it never blocks a booking.
 window.updateDiagWarning = function() {
   const field = document.getElementById('book-diag-field');
@@ -3808,40 +3853,70 @@ window.updateDiagWarning = function() {
   const seen = new Map();
   dates.forEach(d => getOutagesForDate(d).forEach(o => { if (!seen.has(o.id)) seen.set(o.id, o); }));
   if (!seen.size) { field.style.display = 'none'; return; }
-  note.innerHTML = '<strong>🔧 Heads-up: some diagnostics are unavailable on your dates.</strong> You can still book.' +
+  const kinds = [...new Set([...seen.values()].map(outageKind))].map(k => OUTAGE_KINDS[k].things);
+  note.innerHTML = `<strong>🔧 Heads-up: some ${kinds.join(' and ')} are unavailable on your dates.</strong> You can still book.` +
     [...seen.values()].map(o => {
       const end = o.endDate || o.startDate;
-      return `<div style="margin-top:6px"><strong>${escHtml(o.label || 'Diagnostics unavailable')}</strong> (${fmtDate(o.startDate)}${end !== o.startDate ? ' – ' + fmtDate(end) : ''}, back ${fmtDate(addDaysStr(end, 1))}): ${outageDiagnostics(o).map(escHtml).join('; ')}</div>`;
+      return `<div style="margin-top:6px">${OUTAGE_KINDS[outageKind(o)].icon} <strong>${escHtml(o.label || 'Unavailable')}</strong> (${fmtDate(o.startDate)}${end !== o.startDate ? ' – ' + fmtDate(end) : ''}, back ${fmtDate(addDaysStr(end, 1))}): ${outageDiagnostics(o).map(escHtml).join('; ')}</div>`;
     }).join('');
   field.style.display = 'block';
 };
 
-// ── Outage modal ──
+// ── Outage modal (tabs: Diagnostics | Monitoring) ──
 let diagListCache = [];
 function renderDiagChecklist(checkedNames) {
   const box = document.getElementById('diag-checklist');
   if (!box) return;
   const keep = checkedNames || [...box.querySelectorAll('input[type=checkbox]:checked')].map(i => i.dataset.name);
-  const list = getDiagnosticsList().map(x => x.name);
-  keep.forEach(n => { if (!list.includes(n)) list.push(n); }); // an outage can mention a diagnostic that was later removed from the list
+  const list = getDiagnosticsList(diagKind).map(x => x.name);
+  keep.forEach(n => { if (!list.includes(n)) list.push(n); }); // an outage can mention an item that was later removed from the list
   diagListCache = list;
+  if (!list.length) { box.innerHTML = `<div style="font-size:0.82rem;color:var(--muted);padding:4px 0">Nothing in the list yet — add your first one below.</div>`; return; }
   box.innerHTML = list.map((n, i) => `<label class="diag-check"><input type="checkbox" data-idx="${i}" data-name="${escHtml(n)}" ${keep.includes(n) ? 'checked' : ''}><span>${escHtml(n)}</span><button type="button" class="diag-x" title="Remove from the list" onclick="event.preventDefault(); removeDiagnosticFromList(${i})">✕</button></label>`).join('');
 }
 
+// Applies a kind's wording/defaults to the modal. Typed text is only replaced
+// when it is still the OTHER kind's default, so switching tabs never wipes work.
+function applyDiagKind(prevKind) {
+  const K = OUTAGE_KINDS[diagKind], P = prevKind ? OUTAGE_KINDS[prevKind] : null;
+  document.querySelectorAll('#diag-tabs .diag-tab').forEach(b => b.classList.toggle('active', b.dataset.kind === diagKind));
+  document.getElementById('diag-checklist-label').textContent = K.checklistLabel;
+  document.getElementById('diag-label').placeholder = K.labelPh;
+  document.getElementById('diag-reason').placeholder = K.reasonPh;
+  document.getElementById('diag-new-name').placeholder = K.addPh;
+  if (P) {
+    const lab = document.getElementById('diag-label'), con = document.getElementById('diag-contact');
+    if (!lab.value || lab.value === P.defaultLabel) lab.value = K.defaultLabel;
+    if (!con.value || con.value === P.defaultContact) con.value = K.defaultContact;
+  }
+}
+window.setDiagKind = function(kind) {
+  if (editDiagId || kind === diagKind || !OUTAGE_KINDS[kind]) return; // an existing entry keeps its kind
+  const prev = diagKind;
+  diagKind = kind;
+  applyDiagKind(prev);
+  document.getElementById('diag-modal-title').textContent = '🛠️ ' + OUTAGE_KINDS[kind].title;
+  renderDiagChecklist([]);
+};
+
 window.openDiagModal = function(id) {
-  if (!canEditDiagnostics()) { toast('🚫 Only Jonathan or Han Ying can log diagnostics outages'); return; }
+  if (!canEditDiagnostics()) { toast('🚫 Only Jonathan or Han Ying can log outages'); return; }
   editDiagId = typeof id === 'string' ? id : null;
   const o = editDiagId ? allDiagOutages[editDiagId] : null;
-  document.getElementById('diag-modal-title').textContent = o ? '✏️ Edit Diagnostics Outage' : '🔧 Log Diagnostics Outage';
+  diagKind = o ? outageKind(o) : 'diagnostics';
+  const K = OUTAGE_KINDS[diagKind];
+  document.getElementById('diag-modal-title').textContent = o ? `✏️ Edit ${K.name} Outage` : '🛠️ ' + K.title;
+  document.getElementById('diag-tabs').style.display = o ? 'none' : 'flex'; // can't switch kind while editing
   document.getElementById('diag-submit-btn').textContent = o ? 'Save Changes' : 'Save Outage';
-  document.getElementById('diag-label').value = o ? (o.label || '') : 'External calibrations';
-  document.getElementById('diag-contact').value = o ? (o.contact || '') : DEFAULT_DIAG_CONTACT;
+  document.getElementById('diag-label').value = o ? (o.label || '') : K.defaultLabel;
+  document.getElementById('diag-contact').value = o ? (o.contact || '') : K.defaultContact;
   document.getElementById('diag-reason').value = o ? (o.reason || '') : '';
   document.getElementById('diag-start').value = o ? o.startDate : (calSelectedDate || todayStr());
   document.getElementById('diag-end').value = o ? (o.endDate || o.startDate) : '';
   document.getElementById('diag-new-name').value = '';
   document.getElementById('diag-alert').classList.remove('show');
   document.getElementById('diag-success').classList.remove('show');
+  applyDiagKind(null);
   renderDiagChecklist(o ? outageDiagnostics(o) : []);
   document.getElementById('diag-modal').classList.add('open');
 };
@@ -3852,13 +3927,14 @@ window.addDiagnosticToList = async function() {
   const input = document.getElementById('diag-new-name');
   const name = input.value.trim();
   if (!name) return;
-  if (getDiagnosticsList().some(x => x.name.toLowerCase() === name.toLowerCase())) { toast('That diagnostic is already in the list'); return; }
+  if (getDiagnosticsList(diagKind).some(x => x.name.toLowerCase() === name.toLowerCase())) { toast('That one is already in the list'); return; }
   const keep = [...document.querySelectorAll('#diag-checklist input:checked')].map(i => i.dataset.name);
-  await ensureDiagListSeeded();
-  const id = 'DGN' + Date.now().toString(36).toUpperCase();
-  const item = { id, name, order: Object.keys(allDiagList).length, addedBy: currentUserEmail || 'unknown', addedAt: new Date().toISOString() };
-  allDiagList[id] = item; persistLocalDiag();
-  if (db) { try { await set(ref(db, `diagnostics_list/${id}`), item); } catch (e) { console.error(e); toast('⚠️ Couldn’t save to the server — the database may need permission for this. Tell Jiffin.'); } }
+  await ensureDiagListSeeded(diagKind);
+  const list = listFor(diagKind);
+  const id = (diagKind === 'monitoring' ? 'MON' : 'DGN') + Date.now().toString(36).toUpperCase();
+  const item = { id, name, order: Object.keys(list).length, addedBy: currentUserEmail || 'unknown', addedAt: new Date().toISOString() };
+  list[id] = item; persistLocalDiag();
+  if (db) { try { await set(ref(db, `${OUTAGE_KINDS[diagKind].listPath}/${id}`), item); } catch (e) { console.error(e); toast('⚠️ Couldn’t save to the server — the database may need permission for this. Tell Jiffin.'); } }
   input.value = '';
   renderDiagChecklist([...keep, name]); // tick the new one so adding it and using it is one step
 };
@@ -3867,11 +3943,12 @@ window.removeDiagnosticFromList = async function(idx) {
   if (!canEditDiagnostics()) return;
   const name = diagListCache[idx];
   const keep = [...document.querySelectorAll('#diag-checklist input:checked')].map(i => i.dataset.name).filter(n => n !== name);
-  await ensureDiagListSeeded();
-  const entry = Object.values(allDiagList).find(x => x.name === name);
+  await ensureDiagListSeeded(diagKind);
+  const list = listFor(diagKind);
+  const entry = Object.values(list).find(x => x.name === name);
   if (entry) {
-    delete allDiagList[entry.id]; persistLocalDiag();
-    if (db) { try { await set(ref(db, `diagnostics_list/${entry.id}`), null); } catch (e) { console.error(e); toast('⚠️ Removed on this device only — server sync failed'); } }
+    delete list[entry.id]; persistLocalDiag();
+    if (db) { try { await set(ref(db, `${OUTAGE_KINDS[diagKind].listPath}/${entry.id}`), null); } catch (e) { console.error(e); toast('⚠️ Removed on this device only — server sync failed'); } }
   }
   renderDiagChecklist(keep);
   toast('Removed from the list (past outages keep their wording)');
@@ -3880,7 +3957,8 @@ window.removeDiagnosticFromList = async function(idx) {
 window.submitDiagOutage = async function() {
   const alertEl = document.getElementById('diag-alert');
   alertEl.classList.remove('show');
-  if (!canEditDiagnostics()) { toast('🚫 Only Jonathan or Han Ying can log diagnostics outages'); return; }
+  if (!canEditDiagnostics()) { toast('🚫 Only Jonathan or Han Ying can log outages'); return; }
+  const K = OUTAGE_KINDS[diagKind];
   const label = document.getElementById('diag-label').value.trim();
   const contact = document.getElementById('diag-contact').value.trim();
   const reason = document.getElementById('diag-reason').value.trim();
@@ -3890,12 +3968,12 @@ window.submitDiagOutage = async function() {
   const fail = m => { alertEl.textContent = m; alertEl.classList.add('show'); };
   if (!label || !contact || !reason || !startDate || !endDate) return fail('⚠️ Please fill in the label, contact, reason and both dates.');
   if (endDate < startDate) return fail('⚠️ The last day must be on or after the first day.');
-  if (!diagnostics.length) return fail('⚠️ Tick at least one diagnostic that is unavailable.');
+  if (!diagnostics.length) return fail(`⚠️ Tick at least one of the ${K.things} that is unavailable.`);
 
   const prior = editDiagId ? allDiagOutages[editDiagId] : null;
   const id = prior ? prior.id : 'DGO' + Date.now().toString(36).toUpperCase();
   const item = {
-    id, label, contact, reason, startDate, endDate, diagnostics,
+    id, kind: diagKind, label, contact, reason, startDate, endDate, diagnostics,
     addedBy: prior ? prior.addedBy : (currentUserEmail || 'unknown'),
     addedAt: prior ? prior.addedAt : new Date().toISOString(),
     ...(prior ? { editedBy: currentUserEmail || 'unknown', editedAt: new Date().toISOString() } : {}),
@@ -3909,7 +3987,7 @@ window.submitDiagOutage = async function() {
   renderBookingCalendar(); refreshBookingView(); updateDiagWarning();
   document.getElementById('diag-success').textContent = '✅ Saved. It now shows on the calendar.';
   document.getElementById('diag-success').classList.add('show');
-  toast('🔧 Diagnostics outage saved');
+  toast(`${K.icon} ${K.name} outage saved`);
   setTimeout(() => closeDiagModal(), 1200);
 };
 
@@ -3924,7 +4002,7 @@ window.removeDiagOutage = async function(id, btn) {
   delete allDiagOutages[id]; persistLocalDiag();
   if (db) { try { await set(ref(db, `diagnostics_outages/${id}`), null); } catch (e) { console.error(e); toast('⚠️ Removed on this device only — server sync failed'); } }
   renderBookingCalendar(); refreshBookingView(); updateDiagWarning();
-  toast('Diagnostics outage removed');
+  toast('Outage removed');
 };
 
 // ── DOWNLOAD BOOKINGS CSV ─────────────────────────────────────
@@ -4481,6 +4559,7 @@ function init() {
   allVisitors = loadLocalVisitors();
   allDiagOutages = loadLocalDiag(LS_DIAG_OUT_KEY);
   allDiagList = loadLocalDiag(LS_DIAG_LIST_KEY);
+  allMonList = loadLocalDiag(LS_MON_LIST_KEY);
   renderCards();
   renderMonthly();
   renderBookingCalendar();
