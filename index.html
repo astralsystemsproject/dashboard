@@ -192,6 +192,17 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; }
 .cal-dot-red { background: var(--red-light); border: 2px solid var(--red); }
 .cal-dot-amber { background: var(--amber-light); border: 2px solid var(--amber); }
 .cal-dot-purple { background: rgba(139,92,246,0.14); border: 2px solid #8b5cf6; }
+.cal-dot-teal { background: rgba(20,184,166,0.18); border: 2px solid #14b8a6; }
+.diag-chip { font-size: 0.68rem; font-weight: 600; padding: 3px 6px; border-radius: 4px; background: #0f5f7a; color: #fff; border: 1px solid #0b4a60; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grid-diag-cell { text-align: center; padding: 3px !important; }
+.diag-note { background: rgba(20,184,166,0.12); border: 1px solid rgba(20,184,166,0.45); border-radius: 8px; padding: 10px 14px; font-size: 0.82rem; line-height: 1.5; color: var(--text); }
+.diag-day-item { border: 1px solid var(--border); border-left: 4px solid #14b8a6; border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; background: var(--surface); font-size: 0.85rem; line-height: 1.55; }
+.diag-day-item ul { margin: 6px 0 6px 18px; padding: 0; }
+.diag-ok { padding: 10px 14px; border-radius: 8px; background: var(--green-light); color: var(--green); font-size: 0.85rem; font-weight: 600; }
+.diag-check { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 5px; font-size: 0.82rem; cursor: pointer; background: var(--bg); }
+.diag-check input { width: auto !important; flex-shrink: 0; }
+.diag-check .diag-x { margin-left: auto; border: none; background: none; color: var(--muted); cursor: pointer; font-size: 0.8rem; padding: 0 4px; }
+.diag-check .diag-x:hover { color: var(--red); }
 .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 6px; }
 .cal-weekdays div { text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--muted); padding: 4px 0; }
 .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
@@ -916,6 +927,51 @@ tr:hover td { background: var(--bg); }
   </div>
 </div>
 
+<!-- DIAGNOSTICS OUTAGE MODAL (Jonathan Wood / Han Ying only) -->
+<div class="modal-overlay" id="diag-modal">
+  <div class="modal modal-lg">
+    <button class="modal-close-x" onclick="closeDiagModal()" aria-label="Close">&times;</button>
+    <h2 id="diag-modal-title">🔧 Log Diagnostics Outage</h2>
+    <p>Shows on the Booking Calendar and on the day details so people know which diagnostics are unavailable before they book. Applies to the whole facility.</p>
+    <div class="conflict-alert" id="diag-alert"></div>
+    <div class="success-alert" id="diag-success"></div>
+    <div class="form-grid">
+      <div class="form-field">
+        <label>Label on the calendar *</label>
+        <input type="text" id="diag-label" placeholder="e.g. External calibrations" autocomplete="off">
+      </div>
+      <div class="form-field">
+        <label>Contact for questions *</label>
+        <input type="text" id="diag-contact" autocomplete="off">
+      </div>
+      <div class="form-field full">
+        <label>Reason *</label>
+        <input type="text" id="diag-reason" placeholder="e.g. Out for external calibration at the NILE facility" autocomplete="off">
+      </div>
+      <div class="form-field">
+        <label>Unavailable from *</label>
+        <input type="date" id="diag-start">
+      </div>
+      <div class="form-field">
+        <label>Unavailable until (last day) *</label>
+        <input type="date" id="diag-end">
+      </div>
+      <div class="form-field full">
+        <label>Which diagnostics are unavailable? *</label>
+        <div id="diag-checklist"></div>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <input type="text" id="diag-new-name" placeholder="Add a diagnostic to the list (e.g. new detector name)" autocomplete="off">
+          <button class="btn btn-sm" type="button" onclick="addDiagnosticToList()">Add to list</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeDiagModal()">Cancel</button>
+      <button class="btn btn-primary" id="diag-submit-btn" onclick="submitDiagOutage()">Save Outage</button>
+    </div>
+  </div>
+</div>
+
 <!-- BOOKING FORM MODAL -->
 <div class="modal-overlay" id="booking-form-modal">
   <div class="modal modal-lg">
@@ -966,6 +1022,9 @@ tr:hover td { background: var(--bg); }
             <span><strong>Runs alongside another booking</strong> &mdash; I know this overlaps the booking(s) above and both teams can work in the bunker at the same time. An approver must sign off on the overlap.</span>
           </label>
         </div>
+      </div>
+      <div class="form-field full" id="book-diag-field" style="display:none">
+        <div class="diag-note" id="book-diag-note"></div>
       </div>
       <div class="form-field">
         <label>Your Name *</label>
@@ -1106,6 +1165,7 @@ tr:hover td { background: var(--bg); }
         <button class="btn btn-sm" onclick="calNextMonth()">›</button>
         <button class="btn btn-sm btn-primary" onclick="calToday()">Today</button>
         <button class="btn btn-sm" onclick="openVisitorModal()">👤 Add Visitor</button>
+        <button class="btn btn-sm" id="diag-manage-btn" style="display:none" onclick="openDiagModal()">🔧 Log Diagnostics Outage</button>
         <button class="btn btn-sm" onclick="toggleCalFullscreen()">⛶ Full Screen</button>
       </div>
     </div>
@@ -1121,6 +1181,7 @@ tr:hover td { background: var(--bg); }
       <span class="cal-legend-item"><span class="cal-dot cal-dot-red"></span> Booked</span>
       <span class="cal-legend-item"><span class="cal-dot cal-dot-amber"></span> Pending Approval</span>
       <span class="cal-legend-item"><span class="cal-dot cal-dot-purple"></span> 👤 Visitor</span>
+      <span class="cal-legend-item"><span class="cal-dot cal-dot-teal"></span> 🔧 Diagnostics unavailable</span>
     </div>
     <div class="cal-weekdays">
       <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
@@ -1133,6 +1194,7 @@ tr:hover td { background: var(--bg); }
         <span class="cal-legend-item"><span class="cal-dot cal-dot-green"></span> Available</span>
         <span class="cal-legend-item"><span class="cal-dot cal-dot-red"></span> Booked</span>
         <span class="cal-legend-item"><span class="cal-dot cal-dot-amber"></span> Pending Approval</span>
+        <span class="cal-legend-item"><span class="cal-dot cal-dot-teal"></span> 🔧 Diagnostics unavailable</span>
       </div>
       <div class="grid-table-wrap">
         <table class="grid-table">
@@ -1155,6 +1217,12 @@ tr:hover td { background: var(--bg); }
           <tbody id="bookings-tbody"><tr><td colspan="13" style="text-align:center;color:var(--muted);padding:20px">Select a date to view bookings</td></tr></tbody>
         </table>
       </div>
+    </div>
+
+    <!-- Which diagnostics are unavailable on the selected date (facility-wide). -->
+    <div class="bookings-card" id="diag-day-card" style="margin-top:1rem;box-shadow:none;border-style:dashed">
+      <h4>🔧 Diagnostics availability — <span id="diag-day-label">—</span></h4>
+      <div id="diag-day-body"><div class="diag-ok">✅ All diagnostics are available.</div></div>
     </div>
   </div>
 
@@ -1768,6 +1836,8 @@ let allData = {};
 let allBookings = {};
 let allFeedback = {};
 let allVisitors = {};
+let allDiagOutages = {};
+let allDiagList = {};
 
 // ── LOCAL PERSISTENCE (always-on baseline) ─────────────────────
 // Firebase requires a live connection to persist anything — if the DB
@@ -1780,6 +1850,8 @@ const LS_DATA_KEY = 'bunker_local_data';
 const LS_BOOKINGS_KEY = 'bunker_local_bookings';
 const LS_FEEDBACK_KEY = 'bunker_local_feedback';
 const LS_VISITORS_KEY = 'bunker_local_visitors';
+const LS_DIAG_OUT_KEY = 'bunker_local_diag_outages';
+const LS_DIAG_LIST_KEY = 'bunker_local_diag_list';
 function persistLocalData() {
   try { localStorage.setItem(LS_DATA_KEY, JSON.stringify(allData)); } catch (e) { console.error('Local save (bunker_data) failed', e); }
 }
@@ -1800,6 +1872,12 @@ function loadLocalBookings() {
 }
 function loadLocalFeedback() {
   try { const raw = localStorage.getItem(LS_FEEDBACK_KEY); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
+}
+function persistLocalDiag() {
+  try { localStorage.setItem(LS_DIAG_OUT_KEY, JSON.stringify(allDiagOutages)); localStorage.setItem(LS_DIAG_LIST_KEY, JSON.stringify(allDiagList)); } catch (e) { console.error('Local save (diagnostics) failed', e); }
+}
+function loadLocalDiag(key) {
+  try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
 }
 function loadLocalVisitors() {
   try { const raw = localStorage.getItem(LS_VISITORS_KEY); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
@@ -1917,6 +1995,18 @@ function initFirebase(cfg) {
       persistLocalVisitors();
       renderBookingCalendar();
     });
+    // Diagnostics availability (facility-wide). If the database rules don't allow
+    // these paths yet, the dashboard still works; they just stay empty.
+    onValue(ref(db, 'diagnostics_outages'), snap => {
+      allDiagOutages = snap.val() || {};
+      persistLocalDiag();
+      renderBookingCalendar(); refreshBookingView(); updateDiagWarning();
+    }, err => console.warn('diagnostics_outages not readable', err && err.message));
+    onValue(ref(db, 'diagnostics_list'), snap => {
+      allDiagList = snap.val() || {};
+      persistLocalDiag();
+      if (document.getElementById('diag-modal').classList.contains('open')) renderDiagChecklist();
+    }, err => console.warn('diagnostics_list not readable', err && err.message));
     return true;
   } catch(e) {
     document.getElementById('conn-dot').className = 'conn-dot error';
@@ -1953,6 +2043,8 @@ let calSelectedDate = null;
 function renderBookingCalendar() {
   const grid = document.getElementById('cal-grid');
   if (!grid) return;
+  const diagBtn = document.getElementById('diag-manage-btn');
+  if (diagBtn) diagBtn.style.display = canEditDiagnostics() ? '' : 'none';
   document.getElementById('cal-month-label').textContent = `${MONTHS[calMonth]} ${calYear}`;
   grid.innerHTML = '';
 
@@ -1991,6 +2083,10 @@ function renderBookingCalendar() {
       `<div class="cal-event" style="border-left-color:${BUNKER_CHART_COLORS[b.bunker] || 'var(--accent)'}" title="${b.name} · ${b.org || ''}">${phaseDotHtml(b.phase)}${b.status==='pending'?'⏳ ':''}${b.blockId?'🔗 ':''}${b.runsAlongside?'👥 ':''}${b.bunker} ${fmt24(b.start)} · ${b.projectName || b.name}${phaseBadgeHtml(b.phase)}</div>`
     ).join('');
     if (bookings.length > 3) eventsHtml += `<div class="cal-event-more">+${bookings.length - 3} more</div>`;
+    // Diagnostics that are out go FIRST (facility-wide, so they apply whichever bunker is filtered).
+    eventsHtml = getOutagesForDate(c.dateStr).map(o =>
+      `<div class="diag-chip" title="${escHtml((o.reason || '') + ' \u2014 ' + outageDiagnostics(o).join('; '))}">\ud83d\udd27 ${escHtml(o.label || 'Diagnostics out')}</div>`
+    ).join('') + eventsHtml;
 
     const visitors = getVisitorsForDate(c.dateStr);
     eventsHtml += visitors.map(v =>
@@ -2083,6 +2179,17 @@ function renderBookingGrid() {
     }
     rows += `<tr><td class="grid-bunker-cell">${bunker}</td>${cells}</tr>`;
   });
+  // First row: facility-wide diagnostics outages (one thin cell per date).
+  let diagCells = '';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const outs = getOutagesForDate(dateStr);
+    const names = [...new Set(outs.flatMap(outageDiagnostics))];
+    diagCells += outs.length
+      ? `<td class="grid-diag-cell ${dateStr === today ? 'grid-col-today' : ''}"><div class="diag-chip" title="${escHtml(outs.map(o => (o.label || '') + ': ' + outageDiagnostics(o).join('; ')).join(' | '))}">\ud83d\udd27 ${names.length}</div></td>`
+      : `<td class="grid-diag-cell ${dateStr === today ? 'grid-col-today' : ''}"></td>`;
+  }
+  rows = `<tr><td class="grid-bunker-cell">\ud83d\udd27 Diagnostics</td>${diagCells}</tr>` + rows;
   body.innerHTML = rows;
 }
 
@@ -2680,6 +2787,7 @@ window.refreshBookingView = function() {
   document.getElementById('slots-bunker-label').textContent = rLabel;
   document.getElementById('slots-date-label').textContent = fmtDate(date);
   document.getElementById('bookings-day-label').textContent = `${rLabel} — ${fmtDate(date)}`;
+  renderDiagnosticsDay(date);
 
   const slotsGrid = document.getElementById('slots-grid');
   if (activeBookingBunker === 'ALL') {
@@ -3040,6 +3148,10 @@ window.updateOverlapPreview = function() {
   const el = document.getElementById(id);
   if (el) { el.addEventListener('change', window.updateOverlapPreview); el.addEventListener('input', window.updateOverlapPreview); }
 });
+['book-date','book-enddate','book-multiday','book-continuous'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) { el.addEventListener('change', () => window.updateDiagWarning()); el.addEventListener('input', () => window.updateDiagWarning()); }
+});
 
 window.openBookingForm = function() {
   document.getElementById('booking-form-modal').classList.add('open');
@@ -3061,6 +3173,7 @@ window.openBookingForm = function() {
   toggleMultiDayFields();
   document.getElementById('conflict-alert').classList.remove('show');
   document.getElementById('success-alert').classList.remove('show');
+  if (window.updateDiagWarning) window.updateDiagWarning();
 }
 
 window.closeBookingForm = function() {
@@ -3125,6 +3238,7 @@ window.openEditBookingForm = function(id) {
   document.getElementById('success-alert').classList.remove('show');
   window.updateOverlapPreview();
   if (b.runsAlongside) document.getElementById('book-overlap').checked = true;
+  window.updateDiagWarning();
 }
 
 window.checkAndBook = async function() {
@@ -3612,6 +3726,206 @@ window.deleteVisitor = async function(id) {
   renderBookingCalendar();
   toast('Visitor entry removed');
 }
+
+// ── DIAGNOSTICS AVAILABILITY (facility-wide) ──────────────────
+// Shows which diagnostics are out (e.g. for external calibration) on the
+// Booking Calendar, in the day details, and as a heads-up on the booking form.
+// Only the people below can add/edit/remove outages; everyone else just sees
+// them. UI-level only, same caveat as isApprover() — real enforcement needs
+// Firebase Security Rules on /diagnostics_outages and /diagnostics_list.
+const DIAGNOSTICS_EDITORS = [
+  'jonathan@astralsystems.com',
+  'han-ying@astralsystems.com',
+  'jiffin@astralsystems.com', // dashboard owner, as cover
+];
+const DEFAULT_DIAG_CONTACT = 'Jonathan Wood';
+const DEFAULT_DIAGNOSTICS = [
+  'CIVIDEC Diamond Detector – neutron spectra',
+  'EJ-309 Liquid Scintillator – neutron spectra',
+  'B10 PMT – neutron counters (D-D)',
+  'x2 SiPM proton recoil fast neutron counters (D-T)',
+];
+let editDiagId = null;
+
+function canEditDiagnostics() { return DIAGNOSTICS_EDITORS.includes((currentUserEmail || '').toLowerCase()); }
+function escHtml(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); }
+function addDaysStr(dateStr, n) { const d = new Date(dateStr + 'T00:00:00'); d.setDate(d.getDate() + n); return localDateStr(d); }
+function outageDiagnostics(o) { return Object.values(o.diagnostics || []); }
+
+// The master list: what's saved in the database, or the built-in defaults until someone edits it.
+function getDiagnosticsList() {
+  const saved = Object.values(allDiagList || {}).filter(x => x && x.name).sort((a, b) => (a.order || 0) - (b.order || 0) || String(a.name).localeCompare(String(b.name)));
+  if (saved.length) return saved;
+  return DEFAULT_DIAGNOSTICS.map((name, i) => ({ id: 'default-' + i, name, order: i, isDefault: true }));
+}
+async function ensureDiagListSeeded() {
+  if (Object.keys(allDiagList || {}).length) return;
+  const seeded = {};
+  DEFAULT_DIAGNOSTICS.forEach((name, i) => { const id = 'DGN-d' + i; seeded[id] = { id, name, order: i, addedBy: 'default' }; });
+  allDiagList = seeded;
+  persistLocalDiag();
+  if (db) {
+    try { for (const it of Object.values(seeded)) await set(ref(db, `diagnostics_list/${it.id}`), it); }
+    catch (e) { console.error('Diagnostics list seed failed', e); }
+  }
+}
+
+function getOutagesForDate(dateStr) {
+  return Object.values(allDiagOutages || {})
+    .filter(o => o && o.startDate && o.startDate <= dateStr && (o.endDate || o.startDate) >= dateStr)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+}
+
+// Day details under the calendar: what's out, why, for how long, who to ask.
+function renderDiagnosticsDay(date) {
+  const label = document.getElementById('diag-day-label');
+  const body = document.getElementById('diag-day-body');
+  if (!label || !body) return;
+  label.textContent = fmtDate(date);
+  const outs = getOutagesForDate(date);
+  if (!outs.length) { body.innerHTML = '<div class="diag-ok">✅ All diagnostics are available.</div>'; return; }
+  const editor = canEditDiagnostics();
+  body.innerHTML = outs.map(o => {
+    const end = o.endDate || o.startDate;
+    const range = o.startDate === end ? fmtDate(o.startDate) : `${fmtDate(o.startDate)} – ${fmtDate(end)}`;
+    return `<div class="diag-day-item">
+      <div><strong>${escHtml(o.label || 'Diagnostics unavailable')}</strong></div>
+      <div><strong>Reason:</strong> ${escHtml(o.reason)}</div>
+      <div>These diagnostics will be unavailable <strong>${range}</strong>, and are expected back on <strong>${fmtDate(addDaysStr(end, 1))}</strong>. Please contact ${escHtml(o.contact || DEFAULT_DIAG_CONTACT)} if you have any questions.</div>
+      <ul>${outageDiagnostics(o).map(n => `<li>${escHtml(n)}</li>`).join('')}</ul>
+      ${editor ? `<div style="display:flex;gap:6px"><button class="cancel-badge" style="background:var(--accent-light);color:var(--accent);border-color:rgba(59,130,246,0.35)" onclick="openDiagModal('${o.id}')">Edit</button><button class="cancel-badge" onclick="removeDiagOutage('${o.id}', this)">Remove</button></div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// Heads-up on the booking form when the chosen date(s) have diagnostics out.
+// Information only: it never blocks a booking.
+window.updateDiagWarning = function() {
+  const field = document.getElementById('book-diag-field');
+  const note = document.getElementById('book-diag-note');
+  if (!field || !note) return;
+  const dates = formDateList();
+  const seen = new Map();
+  dates.forEach(d => getOutagesForDate(d).forEach(o => { if (!seen.has(o.id)) seen.set(o.id, o); }));
+  if (!seen.size) { field.style.display = 'none'; return; }
+  note.innerHTML = '<strong>🔧 Heads-up: some diagnostics are unavailable on your dates.</strong> You can still book.' +
+    [...seen.values()].map(o => {
+      const end = o.endDate || o.startDate;
+      return `<div style="margin-top:6px"><strong>${escHtml(o.label || 'Diagnostics unavailable')}</strong> (${fmtDate(o.startDate)}${end !== o.startDate ? ' – ' + fmtDate(end) : ''}, back ${fmtDate(addDaysStr(end, 1))}): ${outageDiagnostics(o).map(escHtml).join('; ')}</div>`;
+    }).join('');
+  field.style.display = 'block';
+};
+
+// ── Outage modal ──
+let diagListCache = [];
+function renderDiagChecklist(checkedNames) {
+  const box = document.getElementById('diag-checklist');
+  if (!box) return;
+  const keep = checkedNames || [...box.querySelectorAll('input[type=checkbox]:checked')].map(i => i.dataset.name);
+  const list = getDiagnosticsList().map(x => x.name);
+  keep.forEach(n => { if (!list.includes(n)) list.push(n); }); // an outage can mention a diagnostic that was later removed from the list
+  diagListCache = list;
+  box.innerHTML = list.map((n, i) => `<label class="diag-check"><input type="checkbox" data-idx="${i}" data-name="${escHtml(n)}" ${keep.includes(n) ? 'checked' : ''}><span>${escHtml(n)}</span><button type="button" class="diag-x" title="Remove from the list" onclick="event.preventDefault(); removeDiagnosticFromList(${i})">✕</button></label>`).join('');
+}
+
+window.openDiagModal = function(id) {
+  if (!canEditDiagnostics()) { toast('🚫 Only Jonathan or Han Ying can log diagnostics outages'); return; }
+  editDiagId = typeof id === 'string' ? id : null;
+  const o = editDiagId ? allDiagOutages[editDiagId] : null;
+  document.getElementById('diag-modal-title').textContent = o ? '✏️ Edit Diagnostics Outage' : '🔧 Log Diagnostics Outage';
+  document.getElementById('diag-submit-btn').textContent = o ? 'Save Changes' : 'Save Outage';
+  document.getElementById('diag-label').value = o ? (o.label || '') : 'External calibrations';
+  document.getElementById('diag-contact').value = o ? (o.contact || '') : DEFAULT_DIAG_CONTACT;
+  document.getElementById('diag-reason').value = o ? (o.reason || '') : '';
+  document.getElementById('diag-start').value = o ? o.startDate : (calSelectedDate || todayStr());
+  document.getElementById('diag-end').value = o ? (o.endDate || o.startDate) : '';
+  document.getElementById('diag-new-name').value = '';
+  document.getElementById('diag-alert').classList.remove('show');
+  document.getElementById('diag-success').classList.remove('show');
+  renderDiagChecklist(o ? outageDiagnostics(o) : []);
+  document.getElementById('diag-modal').classList.add('open');
+};
+window.closeDiagModal = function() { document.getElementById('diag-modal').classList.remove('open'); editDiagId = null; };
+
+window.addDiagnosticToList = async function() {
+  if (!canEditDiagnostics()) return;
+  const input = document.getElementById('diag-new-name');
+  const name = input.value.trim();
+  if (!name) return;
+  if (getDiagnosticsList().some(x => x.name.toLowerCase() === name.toLowerCase())) { toast('That diagnostic is already in the list'); return; }
+  const keep = [...document.querySelectorAll('#diag-checklist input:checked')].map(i => i.dataset.name);
+  await ensureDiagListSeeded();
+  const id = 'DGN' + Date.now().toString(36).toUpperCase();
+  const item = { id, name, order: Object.keys(allDiagList).length, addedBy: currentUserEmail || 'unknown', addedAt: new Date().toISOString() };
+  allDiagList[id] = item; persistLocalDiag();
+  if (db) { try { await set(ref(db, `diagnostics_list/${id}`), item); } catch (e) { console.error(e); toast('⚠️ Couldn’t save to the server — the database may need permission for this. Tell Jiffin.'); } }
+  input.value = '';
+  renderDiagChecklist([...keep, name]); // tick the new one so adding it and using it is one step
+};
+
+window.removeDiagnosticFromList = async function(idx) {
+  if (!canEditDiagnostics()) return;
+  const name = diagListCache[idx];
+  const keep = [...document.querySelectorAll('#diag-checklist input:checked')].map(i => i.dataset.name).filter(n => n !== name);
+  await ensureDiagListSeeded();
+  const entry = Object.values(allDiagList).find(x => x.name === name);
+  if (entry) {
+    delete allDiagList[entry.id]; persistLocalDiag();
+    if (db) { try { await set(ref(db, `diagnostics_list/${entry.id}`), null); } catch (e) { console.error(e); toast('⚠️ Removed on this device only — server sync failed'); } }
+  }
+  renderDiagChecklist(keep);
+  toast('Removed from the list (past outages keep their wording)');
+};
+
+window.submitDiagOutage = async function() {
+  const alertEl = document.getElementById('diag-alert');
+  alertEl.classList.remove('show');
+  if (!canEditDiagnostics()) { toast('🚫 Only Jonathan or Han Ying can log diagnostics outages'); return; }
+  const label = document.getElementById('diag-label').value.trim();
+  const contact = document.getElementById('diag-contact').value.trim();
+  const reason = document.getElementById('diag-reason').value.trim();
+  const startDate = document.getElementById('diag-start').value;
+  const endDate = document.getElementById('diag-end').value;
+  const diagnostics = [...document.querySelectorAll('#diag-checklist input:checked')].map(i => i.dataset.name);
+  const fail = m => { alertEl.textContent = m; alertEl.classList.add('show'); };
+  if (!label || !contact || !reason || !startDate || !endDate) return fail('⚠️ Please fill in the label, contact, reason and both dates.');
+  if (endDate < startDate) return fail('⚠️ The last day must be on or after the first day.');
+  if (!diagnostics.length) return fail('⚠️ Tick at least one diagnostic that is unavailable.');
+
+  const prior = editDiagId ? allDiagOutages[editDiagId] : null;
+  const id = prior ? prior.id : 'DGO' + Date.now().toString(36).toUpperCase();
+  const item = {
+    id, label, contact, reason, startDate, endDate, diagnostics,
+    addedBy: prior ? prior.addedBy : (currentUserEmail || 'unknown'),
+    addedAt: prior ? prior.addedAt : new Date().toISOString(),
+    ...(prior ? { editedBy: currentUserEmail || 'unknown', editedAt: new Date().toISOString() } : {}),
+  };
+  allDiagOutages[id] = item;
+  persistLocalDiag();
+  if (db) {
+    try { await set(ref(db, `diagnostics_outages/${id}`), item); }
+    catch (e) { console.error('Firebase sync failed, kept locally', e); toast('⚠️ Saved on this device only — the database may need permission for this. Tell Jiffin.'); }
+  }
+  renderBookingCalendar(); refreshBookingView(); updateDiagWarning();
+  document.getElementById('diag-success').textContent = '✅ Saved. It now shows on the calendar.';
+  document.getElementById('diag-success').classList.add('show');
+  toast('🔧 Diagnostics outage saved');
+  setTimeout(() => closeDiagModal(), 1200);
+};
+
+// Two clicks to remove (no browser pop-up): first click arms the button.
+window.removeDiagOutage = async function(id, btn) {
+  if (!canEditDiagnostics()) { toast('🚫 Only Jonathan or Han Ying can remove outages'); return; }
+  if (btn && !btn.dataset.armed) {
+    btn.dataset.armed = '1'; btn.textContent = 'Click again to confirm';
+    setTimeout(() => { if (btn.isConnected) { btn.dataset.armed = ''; btn.textContent = 'Remove'; } }, 3500);
+    return;
+  }
+  delete allDiagOutages[id]; persistLocalDiag();
+  if (db) { try { await set(ref(db, `diagnostics_outages/${id}`), null); } catch (e) { console.error(e); toast('⚠️ Removed on this device only — server sync failed'); } }
+  renderBookingCalendar(); refreshBookingView(); updateDiagWarning();
+  toast('Diagnostics outage removed');
+};
 
 // ── DOWNLOAD BOOKINGS CSV ─────────────────────────────────────
 window.downloadBookingsCSV = function() {
@@ -4165,6 +4479,8 @@ function init() {
   allBookings = loadLocalBookings();
   allFeedback = loadLocalFeedback();
   allVisitors = loadLocalVisitors();
+  allDiagOutages = loadLocalDiag(LS_DIAG_OUT_KEY);
+  allDiagList = loadLocalDiag(LS_DIAG_LIST_KEY);
   renderCards();
   renderMonthly();
   renderBookingCalendar();
